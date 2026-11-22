@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>99.参考资料 · 大模型面试笔记</title>
+<style>
+:root{--bg:#f7f7f8;--fg:#1f2328;--muted:#6b7280;--card:#fff;--line:#e5e7eb;--accent:#2563eb;--accent-soft:#eff4ff;--code-bg:#f6f8fa;--sb-bg:#fff;}
+@media (prefers-color-scheme: dark){:root{--bg:#15171a;--fg:#e6e6e6;--muted:#9aa0a6;--card:#1c1f23;--line:#2c3036;--accent:#6ea8fe;--accent-soft:#1e2a3d;--code-bg:#22262b;--sb-bg:#191c20;}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.doc a{overflow-wrap:anywhere}
+#toc{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--sb-bg);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20}
+#toc .brand{padding:16px 18px 10px;border-bottom:1px solid var(--line)}
+#toc .brand b{font-size:15px;display:block}
+#toc .brand small{color:var(--muted);font-size:12px}
+#toc .search{padding:10px 14px;border-bottom:1px solid var(--line)}
+#toc .search input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px;outline:none}
+#toc .search input:focus{border-color:var(--accent)}
+#toc .toc-list{overflow-y:auto;flex:1;padding:8px 8px 40px}
+.toc-chap-title{font-size:12px;font-weight:600;color:var(--muted);padding:8px 10px 4px}
+.toc-chap ul{list-style:none;margin:0;padding:0}
+.toc-chap li a{display:block;padding:5px 10px;border-radius:7px;color:var(--fg);font-size:13.5px;line-height:1.45}
+.toc-chap li a:hover{background:var(--accent-soft);text-decoration:none}
+.toc-chap li a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.toc-n{display:inline-block;min-width:22px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.partnav{padding:8px 8px 0;display:flex;gap:6px}
+.partnav a{flex:1;text-align:center;font-size:12px;padding:6px 4px;border:1px solid var(--line);border-radius:8px;color:var(--fg)}
+.partnav a:hover{background:var(--accent-soft);text-decoration:none}
+main{margin-left:300px;padding:28px 28px 120px;display:flex;justify-content:center}
+.wrap{width:100%;max-width:880px}
+.doc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px 42px 42px;margin:0 0 34px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.doc-meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+.doc-h1{font-size:26px;line-height:1.35;margin:0 0 22px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.doc h1,.doc h2,.doc h3,.doc h4,.doc h5,.doc h6{line-height:1.4;margin:1.6em 0 .6em;font-weight:700;scroll-margin-top:20px}
+.doc h2{font-size:21px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.doc h3{font-size:18px}
+.doc h4{font-size:16px}
+.doc p{margin:.75em 0}
+.doc ul,.doc ol{padding-left:1.6em;margin:.7em 0}
+.doc li{margin:.3em 0}
+.doc img{max-width:100%;height:auto;border-radius:6px;display:block;margin:12px auto}
+.img-missing{display:inline-block;padding:4px 10px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);font-size:13px}
+.doc blockquote{margin:1em 0;padding:.6em 1em;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0}
+.doc blockquote p{margin:.3em 0}
+.doc code{font-family:"JetBrains Mono",Consolas,"Courier New",monospace;font-size:88%;background:var(--code-bg);padding:.15em .4em;border-radius:5px;border:1px solid var(--line)}
+.doc p code,.doc li code,.doc td code,.doc h1 code,.doc h2 code,.doc h3 code,.doc blockquote code{overflow-wrap:anywhere;word-break:break-word}
+.doc pre{background:#1a1a1a;color:#e6e6e6;border:1px solid #333;border-radius:10px;padding:14px 16px;overflow:auto;line-height:1.55;margin:1em 0;font-size:13px}
+.doc pre code{background:none;border:0;padding:0;color:inherit;font-size:13px}
+.doc div.sourceCode{background:#1a1a1a;border:1px solid #333;border-radius:10px;margin:1em 0;overflow:auto}
+.doc div.sourceCode pre{background:none;border:0;border-radius:0;padding:14px 16px;margin:0}
+.doc table{border-collapse:collapse;width:100%;margin:1em 0;display:block;overflow:auto;font-size:14.5px}
+.doc th,.doc td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+.doc th{background:var(--code-bg);font-weight:600}
+.doc hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.doc details{margin:.8em 0;padding:.4em .8em;border:1px solid var(--line);border-radius:8px}
+.doc summary{cursor:pointer;font-weight:600}
+.doc math{font-size:1.08em}
+.doc math[display="block"]{display:block;margin:1.1em auto;text-align:center;overflow-x:auto;overflow-y:hidden;padding:2px 0}
+#top{position:fixed;right:24px;bottom:24px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:18px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;z-index:30}
+#menu{display:none}
+@media (max-width:1024px){
+  #toc{transform:translateX(-100%);transition:transform .22s ease}
+  body.nav-open #toc{transform:none;box-shadow:0 0 30px rgba(0,0,0,.25)}
+  main{margin-left:0;padding:16px 12px 90px}
+  .doc{padding:22px 18px 28px;border-radius:10px}
+  #menu{display:flex;position:fixed;left:14px;bottom:24px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:18px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);align-items:center;justify-content:center;z-index:30}
+}
+@media print{
+  #toc,#top,#menu,.partnav{display:none!important}
+  main{margin:0;padding:0}
+  .doc{border:0;box-shadow:none;padding:0;page-break-before:always}
+  .doc:first-child{page-break-before:auto}
+  body{background:#fff;color:#000}
+  .doc pre,.doc div.sourceCode{border:1px solid #ccc}
+}
+code span.al{color:#95da4c;font-weight:bold}
+code span.an{color:#3f8058}
+code span.at{color:#2980b9}
+code span.bn{color:#f67400}
+code span.bu{color:#7f8c8d}
+code span.cf{color:#fdbc4b;font-weight:bold}
+code span.ch{color:#3daee9}
+code span.cn{color:#27aeae;font-weight:bold}
+code span.co{color:#7a7c7d}
+code span.cv{color:#7f8c8d}
+code span.do{color:#a43340}
+code span.dt{color:#2980b9}
+code span.dv{color:#f67400}
+code span.er{color:#da4453;text-decoration:underline}
+code span.ex{color:#0099ff;font-weight:bold}
+code span.fl{color:#f67400}
+code span.fu{color:#8e44ad}
+code span.im{color:#27ae60}
+code span.in{color:#c45b00}
+code span.kw{color:#cfcfc2;font-weight:bold}
+code span.op{color:#cfcfc2}
+code span.ot{color:#27ae60}
+code span.pp{color:#27ae60}
+code span.sc{color:#3daee9}
+code span.ss{color:#da4453}
+code span.st{color:#f44f4f}
+code span.va{color:#27aeae}
+code span.vs{color:#da4453}
+code span.wa{color:#da4453}
+</style>
+</head>
+<body>
+<nav id="toc">
+  <div class="brand"><b>99.参考资料</b><small>1 篇</small></div>
+  <div class="search"><input id="q" type="search" placeholder="搜索标题 / 路径…"></div>
+  <div class="partnav"></div>
+  <div class="toc-list"><div class="toc-chap"><ul><li><a href="#d94" data-t="99.参考资料 99.参考资料/readme.md"><span class="toc-n">94</span>99.参考资料</a></li></ul></div></div>
+</nav>
+<main><div class="wrap">
+<section class="doc" id="d94">
+<div class="doc-meta">99.参考资料/README.md</div>
+<h1 class="doc-h1">99.参考资料</h1>
+<ul><li><a href="https://github.com/km1994/LLMs_interview_notes" title="大模型（LLMs） 算法工程师相关的面试题">大模型（LLMs） 算法工程师相关的面试题</a></li><li><a href="https://mp.weixin.qq.com/s/DBP_eafGeKMEuSIma9Z9Tg" title="epoch次数设置问题">epoch次数设置问题</a></li><li><a href="https://techdiylife.github.io/big-model-training/deepspeed/LLM-state-of-GPT.html" title="大模型训练入门实战">大模型训练入门实战</a></li><li><a href="https://mp.weixin.qq.com/s/s3aPTe11-w_ELL7uZJCI2Q" title="大模型训练避坑指南">大模型训练避坑指南</a></li><li><a href="https://mingchao.wang/" title="算法工程师笔记">算法工程师笔记</a></li><li><a href="https://github.com/DA-southampton/NLP_ability" title="深度学习自然语言处理">深度学习自然语言处理</a></li><li><a href="https://www.zhihu.com/people/yilan-zhong-shan-xiao-29-98" title="养生的控制人 - 知乎 (zhihu.com)">养生的控制人 - 知乎 (zhihu.com)</a></li></ul>
+
+</section>
+</div></main>
+<button id="menu" title="目录">☰</button>
+<button id="top" title="回到顶部">↑</button>
+<script>
+(function(){
+  var input=document.getElementById('q');
+  var links=[].slice.call(document.querySelectorAll('#toc .toc-chap a'));
+  var chaps=[].slice.call(document.querySelectorAll('.toc-chap'));
+  input.addEventListener('input',function(){
+    var q=input.value.trim().toLowerCase();
+    links.forEach(function(a){ a.parentNode.style.display = (!q || a.dataset.t.indexOf(q)>-1) ? '' : 'none'; });
+    chaps.forEach(function(c){
+      var any=[].slice.call(c.querySelectorAll('li')).some(function(li){return li.style.display!=='none';});
+      c.style.display = any ? '' : 'none';
+    });
+  });
+  input.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){var a=links.filter(function(x){return x.parentNode.style.display!=='none';})[0]; if(a){location.href=a.getAttribute('href');}}
+  });
+  var map={}; links.forEach(function(a){ var h=a.getAttribute('href'); if(h.charAt(0)==='#'){ map[h.slice(1)]=a; } });
+  var obs=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){a.classList.remove('active');});
+        var a=map[e.target.id]; if(a){a.classList.add('active');}
+      }
+    });
+  },{rootMargin:'0px 0px -70% 0px'});
+  document.querySelectorAll('section.doc').forEach(function(s){obs.observe(s);});
+  document.getElementById('top').addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('menu').addEventListener('click',function(){document.body.classList.toggle('nav-open');});
+  document.querySelectorAll('#toc a').forEach(function(a){a.addEventListener('click',function(){document.body.classList.remove('nav-open');});});
+})();
+</script>
+</body>
+</html>

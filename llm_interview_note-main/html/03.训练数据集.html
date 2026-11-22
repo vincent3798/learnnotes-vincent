@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>03.训练数据集 · 大模型面试笔记</title>
+<style>
+:root{--bg:#f7f7f8;--fg:#1f2328;--muted:#6b7280;--card:#fff;--line:#e5e7eb;--accent:#2563eb;--accent-soft:#eff4ff;--code-bg:#f6f8fa;--sb-bg:#fff;}
+@media (prefers-color-scheme: dark){:root{--bg:#15171a;--fg:#e6e6e6;--muted:#9aa0a6;--card:#1c1f23;--line:#2c3036;--accent:#6ea8fe;--accent-soft:#1e2a3d;--code-bg:#22262b;--sb-bg:#191c20;}}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC","Hiragino Sans GB",sans-serif;}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+.doc a{overflow-wrap:anywhere}
+#toc{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--sb-bg);border-right:1px solid var(--line);display:flex;flex-direction:column;z-index:20}
+#toc .brand{padding:16px 18px 10px;border-bottom:1px solid var(--line)}
+#toc .brand b{font-size:15px;display:block}
+#toc .brand small{color:var(--muted);font-size:12px}
+#toc .search{padding:10px 14px;border-bottom:1px solid var(--line)}
+#toc .search input{width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:13px;outline:none}
+#toc .search input:focus{border-color:var(--accent)}
+#toc .toc-list{overflow-y:auto;flex:1;padding:8px 8px 40px}
+.toc-chap-title{font-size:12px;font-weight:600;color:var(--muted);padding:8px 10px 4px}
+.toc-chap ul{list-style:none;margin:0;padding:0}
+.toc-chap li a{display:block;padding:5px 10px;border-radius:7px;color:var(--fg);font-size:13.5px;line-height:1.45}
+.toc-chap li a:hover{background:var(--accent-soft);text-decoration:none}
+.toc-chap li a.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.toc-n{display:inline-block;min-width:22px;color:var(--muted);font-size:11px;font-variant-numeric:tabular-nums}
+.partnav{padding:8px 8px 0;display:flex;gap:6px}
+.partnav a{flex:1;text-align:center;font-size:12px;padding:6px 4px;border:1px solid var(--line);border-radius:8px;color:var(--fg)}
+.partnav a:hover{background:var(--accent-soft);text-decoration:none}
+main{margin-left:300px;padding:28px 28px 120px;display:flex;justify-content:center}
+.wrap{width:100%;max-width:880px}
+.doc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:34px 42px 42px;margin:0 0 34px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.doc-meta{font-size:12px;color:var(--muted);margin-bottom:6px}
+.doc-h1{font-size:26px;line-height:1.35;margin:0 0 22px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.doc h1,.doc h2,.doc h3,.doc h4,.doc h5,.doc h6{line-height:1.4;margin:1.6em 0 .6em;font-weight:700;scroll-margin-top:20px}
+.doc h2{font-size:21px;border-bottom:1px solid var(--line);padding-bottom:8px}
+.doc h3{font-size:18px}
+.doc h4{font-size:16px}
+.doc p{margin:.75em 0}
+.doc ul,.doc ol{padding-left:1.6em;margin:.7em 0}
+.doc li{margin:.3em 0}
+.doc img{max-width:100%;height:auto;border-radius:6px;display:block;margin:12px auto}
+.img-missing{display:inline-block;padding:4px 10px;border:1px dashed var(--line);border-radius:6px;color:var(--muted);font-size:13px}
+.doc blockquote{margin:1em 0;padding:.6em 1em;border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:0 8px 8px 0}
+.doc blockquote p{margin:.3em 0}
+.doc code{font-family:"JetBrains Mono",Consolas,"Courier New",monospace;font-size:88%;background:var(--code-bg);padding:.15em .4em;border-radius:5px;border:1px solid var(--line)}
+.doc p code,.doc li code,.doc td code,.doc h1 code,.doc h2 code,.doc h3 code,.doc blockquote code{overflow-wrap:anywhere;word-break:break-word}
+.doc pre{background:#1a1a1a;color:#e6e6e6;border:1px solid #333;border-radius:10px;padding:14px 16px;overflow:auto;line-height:1.55;margin:1em 0;font-size:13px}
+.doc pre code{background:none;border:0;padding:0;color:inherit;font-size:13px}
+.doc div.sourceCode{background:#1a1a1a;border:1px solid #333;border-radius:10px;margin:1em 0;overflow:auto}
+.doc div.sourceCode pre{background:none;border:0;border-radius:0;padding:14px 16px;margin:0}
+.doc table{border-collapse:collapse;width:100%;margin:1em 0;display:block;overflow:auto;font-size:14.5px}
+.doc th,.doc td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+.doc th{background:var(--code-bg);font-weight:600}
+.doc hr{border:0;border-top:1px solid var(--line);margin:2em 0}
+.doc details{margin:.8em 0;padding:.4em .8em;border:1px solid var(--line);border-radius:8px}
+.doc summary{cursor:pointer;font-weight:600}
+.doc math{font-size:1.08em}
+.doc math[display="block"]{display:block;margin:1.1em auto;text-align:center;overflow-x:auto;overflow-y:hidden;padding:2px 0}
+#top{position:fixed;right:24px;bottom:24px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:18px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;z-index:30}
+#menu{display:none}
+@media (max-width:1024px){
+  #toc{transform:translateX(-100%);transition:transform .22s ease}
+  body.nav-open #toc{transform:none;box-shadow:0 0 30px rgba(0,0,0,.25)}
+  main{margin-left:0;padding:16px 12px 90px}
+  .doc{padding:22px 18px 28px;border-radius:10px}
+  #menu{display:flex;position:fixed;left:14px;bottom:24px;width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--fg);font-size:18px;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.12);align-items:center;justify-content:center;z-index:30}
+}
+@media print{
+  #toc,#top,#menu,.partnav{display:none!important}
+  main{margin:0;padding:0}
+  .doc{border:0;box-shadow:none;padding:0;page-break-before:always}
+  .doc:first-child{page-break-before:auto}
+  body{background:#fff;color:#000}
+  .doc pre,.doc div.sourceCode{border:1px solid #ccc}
+}
+code span.al{color:#95da4c;font-weight:bold}
+code span.an{color:#3f8058}
+code span.at{color:#2980b9}
+code span.bn{color:#f67400}
+code span.bu{color:#7f8c8d}
+code span.cf{color:#fdbc4b;font-weight:bold}
+code span.ch{color:#3daee9}
+code span.cn{color:#27aeae;font-weight:bold}
+code span.co{color:#7a7c7d}
+code span.cv{color:#7f8c8d}
+code span.do{color:#a43340}
+code span.dt{color:#2980b9}
+code span.dv{color:#f67400}
+code span.er{color:#da4453;text-decoration:underline}
+code span.ex{color:#0099ff;font-weight:bold}
+code span.fl{color:#f67400}
+code span.fu{color:#8e44ad}
+code span.im{color:#27ae60}
+code span.in{color:#c45b00}
+code span.kw{color:#cfcfc2;font-weight:bold}
+code span.op{color:#cfcfc2}
+code span.ot{color:#27ae60}
+code span.pp{color:#27ae60}
+code span.sc{color:#3daee9}
+code span.ss{color:#da4453}
+code span.st{color:#f44f4f}
+code span.va{color:#27aeae}
+code span.vs{color:#da4453}
+code span.wa{color:#da4453}
+</style>
+</head>
+<body>
+<nav id="toc">
+  <div class="brand"><b>03.训练数据集</b><small>2 篇</small></div>
+  <div class="search"><input id="q" type="search" placeholder="搜索标题 / 路径…"></div>
+  <div class="partnav"></div>
+  <div class="toc-list"><div class="toc-chap"><ul><li><a href="#d34" data-t="03.训练数据集 03.训练数据集/readme.md"><span class="toc-n">34</span>03.训练数据集</a></li>
+<li><a href="#d35" data-t="数据格式 03.训练数据集/数据格式/数据格式.md"><span class="toc-n">35</span>数据格式</a></li></ul></div></div>
+</nav>
+<main><div class="wrap">
+<section class="doc" id="d34">
+<div class="doc-meta">03.训练数据集/README.md</div>
+<h1 class="doc-h1">03.训练数据集</h1>
+<h3>3.1 数据集</h3><p><a href="#d35" title="数据格式">数据格式</a></p><h3>3.2 模型参数</h3>
+
+</section>
+<section class="doc" id="d35">
+<div class="doc-meta">03.训练数据集/数据格式/数据格式.md</div>
+<h1 class="doc-h1">数据格式</h1>
+<p>[toc]</p><h3>1.SFT（有监督微调）的数据集格式？</h3><p>对于大语言模型的训练中，SFT（Supervised Fine-Tuning）的数据集格式可以采用以下方式：</p><ol type="1"><li>输入数据：输入数据是一个文本序列，通常是一个句子或者一个段落。每个样本可以是一个字符串或者是一个tokenized的文本序列。</li><li>标签数据：标签数据是与输入数据对应的标签或类别。标签可以是单个类别，也可以是多个类别的集合。对于多分类任务，通常使用one-hot编码或整数编码来表示标签。</li><li>数据集划分：数据集通常需要划分为训练集、验证集和测试集。训练集用于模型的训练，验证集用于调整模型的超参数和监控模型的性能，测试集用于评估模型的最终性能。</li><li>数据集格式：数据集可以以文本文件（如CSV、JSON等）或数据库的形式存储。每个样本包含输入数据和对应的标签。可以使用表格形式存储数据，每一列代表一个特征或标签。</li></ol><p>下面是一个示例数据集的格式：</p><div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span><span class="ex">Input,Label</span></span>
+<span><span class="st">&quot;This is a sentence.&quot;</span><span class="ex">,1</span></span>
+<span><span class="st">&quot;Another sentence.&quot;</span><span class="ex">,0</span></span>
+<span><span class="ex">...</span></span></code></pre></div><p>在这个示例中，<strong>输入数据是一个句子，标签是一个二分类的标签</strong>（1代表正例，0代表负例）。每一行代表一个样本，第一列是输入数据，第二列是对应的标签。</p><p>需要注意的是，具体的数据集格式可能会因任务类型、数据来源和使用的深度学习框架而有所不同。因此，在进行SFT训练时，建议根据具体任务和框架的要求来定义和处理数据集格式。</p><h3>2.RM（奖励模型）的数据格式？</h3><p>在大语言模型训练中，RM（Reward Model，奖励模型）的数据格式可以采用以下方式：</p><ol type="1"><li>输入数据：输入数据是一个文本序列，通常是一个句子或者一个段落。每个样本可以是一个字符串或者是一个tokenized的文本序列。</li><li>奖励数据：奖励数据是与输入数据对应的奖励或评分。奖励可以是一个实数值，表示对输入数据的评价。也可以是一个离散的标签，表示对输入数据的分类。奖励数据可以是人工标注的，也可以是通过其他方式（如人工评估、强化学习等）得到的。</li><li>数据集格式：数据集可以以文本文件（如CSV、JSON等）或数据库的形式存储。每个样本包含输入数据和对应的奖励数据。可以使用表格形式存储数据，每一列代表一个特征或标签。</li></ol><p>下面是一个示例数据集的格式：</p><div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span><span class="ex">Input,Reward</span></span>
+<span><span class="st">&quot;This is a sentence.&quot;</span><span class="ex">,0.8</span></span>
+<span><span class="st">&quot;Another sentence.&quot;</span><span class="ex">,0.2</span></span>
+<span><span class="ex">...</span></span></code></pre></div><p>在这个示例中，输入数据是一个句子，<strong>奖励数据是一个实数值，表示对输入数据的评价</strong>。每一行代表一个样本，第一列是输入数据，第二列是对应的奖励数据。</p><p>需要注意的是，具体的数据集格式可能会因任务类型、数据来源和使用的深度学习框架而有所不同。因此，在使用RM进行大语言模型训练时，建议根据具体任务和框架的要求来定义和处理数据集格式。</p><h3>3.PPO（强化学习）的数据格式？</h3><p>在大语言模型训练中，PPO（Proximal Policy Optimization，近端策略优化）是一种常用的强化学习算法。PPO的数据格式可以采用以下方式：</p><ol type="1"><li>输入数据：输入数据是一个文本序列，通常是一个句子或者一个段落。每个样本可以是一个字符串或者是一个tokenized的文本序列。</li><li>奖励数据：奖励数据是与输入数据对应的奖励或评分。奖励可以是一个实数值，表示对输入数据的评价。也可以是一个离散的标签，表示对输入数据的分类。奖励数据可以是人工标注的，也可以是通过其他方式（如人工评估、模型评估等）得到的。</li><li>动作数据：动作数据是模型在给定输入数据下的输出动作。对于语言模型，动作通常是生成的文本序列。动作数据可以是一个字符串或者是一个tokenized的文本序列。</li><li>状态数据：状态数据是模型在给定输入数据和动作数据下的状态信息。对于语言模型，状态数据可以是模型的隐藏状态或其他中间表示。状态数据的具体形式可以根据具体任务和模型结构进行定义。</li><li>数据集格式：数据集可以以文本文件（如CSV、JSON等）或数据库的形式存储。每个样本包含输入数据、奖励数据、动作数据和状态数据。可以使用表格形式存储数据，每一列代表一个特征或标签。</li></ol><p>下面是一个示例数据集的格式：</p><div class="sourceCode"><pre class="sourceCode bash"><code class="sourceCode bash"><span><span class="ex">Input,Reward,Action,State</span></span>
+<span> <span class="st">&quot;This is a sentence.&quot;</span><span class="ex">,0.8,</span><span class="st">&quot;This is a generated sentence.&quot;</span><span class="ex">,[0.1,</span> 0.2, 0.3, ...]</span>
+<span><span class="st">&quot;Another sentence.&quot;</span><span class="ex">,0.2,</span><span class="st">&quot;Another generated sentence.&quot;</span><span class="ex">,[0.4,</span> 0.5, 0.6, ...]</span>
+<span><span class="ex">...</span></span></code></pre></div><p>在这个示例中，输入数据是一个句子，奖励数据是一个实数值，动作数据是生成的句子，状态数据是模型的隐藏状态。每一行代表一个样本，第一列是输入数据，第二列是对应的奖励数据，第三列是生成的动作数据，第四列是状态数据。</p><p>需要注意的是，具体的数据集格式可能会因任务类型、数据来源和使用的深度学习框架而有所不同。因此，在使用PPO进行大语言模型训练时，建议根据具体任务和框架的要求来定义和处理数据集格式。</p><h3>4.找数据集哪里找？</h3><p>在训练自己的大语言模型时，可以从以下几个途径找到合适的数据集：</p><ol type="1"><li><strong>公开数据集</strong>：有许多公开可用的数据集可供使用，涵盖了各种领域和任务。例如，Common Crawl、Wikipedia、OpenWebText、BookCorpus等都是常用的大规模文本数据集，可以用于语言模型的训练。</li><li><strong>开放数据平台</strong>：许多组织和机构提供了开放的数据平台，可以获取各种类型的数据。例如，Kaggle、UCI Machine Learning Repository、Google Dataset Search等平台都提供了丰富的数据集资源。</li><li><strong>学术界研究</strong>：许多学术研究项目会公开其使用的数据集，可以通过相关论文或项目页面找到这些数据集。例如，NLP领域的一些会议和竞赛（如ACL、EMNLP、CoNLL、GLUE等）提供了公开的数据集供研究使用。</li><li><strong>数据收集和爬取</strong>：如果没有合适的公开数据集，您可以自己进行数据收集和爬取。这可以通过爬虫技术从互联网上收集相关的文本数据。需要注意的是，在进行数据收集和爬取时，需要遵守法律法规和网站的使用条款，并确保获得数据的合法使用权。</li><li><strong>数据增强</strong>：如果您已经有了一些初始的数据集，但觉得数量不够，可以考虑使用数据增强技术来扩充数据。数据增强可以通过对原始数据进行一些变换、替换、合成等操作来生成新的样本。<ul><li>EDA(Easy Data Augmentation): 同义词替换、同义词随机插入、随机选择两个单词交换位置、随机删除一个单词</li><li>AEDA(An Easier Data Augmentation): 在[1, <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mfrac><mn>1</mn><mn>3</mn></mfrac><mo>×</mo><mi>l</mi><mi>e</mi><mi>n</mi></mrow><annotation encoding="application/x-tex">\frac{1}{3} \times len</annotation></semantics></math>]中随机选择一个数作为插入的位置的数目，在每一个插入位置从{'.', ';', '?', ':', '!', ','}中随机选择一个插入</li><li>回译(Back Translation): 将文本翻译成另一种语言，然后再翻译回来。可以翻译成多种语言，从而得到多条回译样本</li><li>Masked Language Model: 利用预训练好的BERT, Roberta等模型，对原句子进行部分掩码，然后让模型预测掩码部分，从而得到新的句子。但是，这种方法存在的一个问题是，决定要屏蔽文本的哪一部分并不简单。可以考虑使用启发式方法来确定掩码部分，否则，生成的文本可能无法保留原始句子的含义。（启发式方法：基于词性或词频等方法。基于词性选择对句子语义影响不大的介词、冠词、连词等，基于词频选择频率较高的功能词）</li><li>More: <a href="https://blog.csdn.net/Flying_sfeng/article/details/121691380">文本数据增强方法总结</a></li></ul></li></ol><p>无论从哪个途径获取数据集，都需要注意数据的质量、版权和隐私等问题。确保您有合法的使用权，并遵守相关的法律和伦理规范。</p><h3>5.微调需要多少条数据？</h3><p>根据 Scaling Laws，随着模型大小、数据集大小和用于训练的计算浮点数的增加，模型的性能会提高。并且为了获得最佳性能，所有三个因素<strong>必须同时放大</strong>。一般来说对于给定模型的理想训练数据集 token 数量大约是模型中参数数量的20倍。</p><h3>6.有哪些大模型的训练集？</h3><p>以下是一些常用的大语言模型训练集的示例：</p><ol type="1"><li>Common Crawl：这是一个由互联网上抓取的大规模文本数据集，包含了来自各种网站的文本内容。它是一个常用的数据集，可用于语言模型的训练。</li><li>Wikipedia：维基百科是一个包含大量结构化文本的在线百科全书。维基百科的内容丰富多样，涵盖了各种领域的知识，可以作为语言模型训练的数据集。</li><li>OpenWebText：这是一个从互联网上抓取的开放文本数据集，类似于Common Crawl。它包含了大量的网页文本，可以作为语言模型的训练数据。</li><li>BookCorpus：这是一个包含了大量图书文本的数据集，用于语言模型的训练。它包括了各种类型的图书，涵盖了广泛的主题和领域。</li><li>News articles：新闻文章是另一个常用的语言模型训练集。可以通过从新闻网站、新闻API或新闻数据库中收集新闻文章来构建训练集。</li><li>其他领域特定数据集：根据具体任务和应用，可以使用特定领域的数据集来训练语言模型。例如，在医学领域，可以使用医学文献或医疗记录作为训练数据；在法律领域，可以使用法律文书或法律条款作为训练数据。</li></ol><p>需要注意的是，使用这些数据集时，应该遵守数据的版权和使用规定，确保合法的使用权。此外，还可以通过数据增强技术，如数据合成、数据变换等，来扩充训练集的规模和多样性。</p><h3>7.进行领域大模型预训练应用哪些数据集比较好？</h3><p>进行领域大模型预训练时，可以使用以下几种数据集来获得更好的效果：</p><ol type="1"><li>领域特定文本数据集：收集与目标领域相关的文本数据集，例如专业领域的论文、报告、文档、书籍等。这些数据集可以提供领域内的专业术语、上下文和特定领域的知识。</li><li>领域内的网页内容：从目标领域相关的网页抓取文本内容。可以通过爬虫技术从相关网站上获取与目标领域相关的网页文本数据。</li><li>领域内的新闻文章：收集与目标领域相关的新闻文章。新闻文章通常包含了领域内的最新信息和事件，可以帮助模型了解领域内的动态和趋势。</li><li>行业报告和白皮书：获取与目标领域相关的行业报告、白皮书和研究文献。这些文献通常包含了领域内的专业分析、统计数据和趋势预测，可以帮助模型了解行业背景和发展趋势。</li><li>社交媒体数据：收集与目标领域相关的社交媒体数据，如推特、微博、论坛等。社交媒体上的内容通常反映了人们在目标领域中的讨论、观点和问题，可以帮助模型了解领域内的热点和用户需求。</li><li>领域内的对话数据：获取与目标领域相关的对话数据，如客服对话、问答平台数据等。这些对话数据可以帮助模型学习领域内的常见问题、解决方案和用户需求。</li></ol><p>在选择数据集时，应该确保数据的质量和合法性，并遵守相关的法律和伦理规范。同时，还可以考虑使用数据增强技术，如数据合成、数据变换等，来扩充训练集的规模和多样性。</p>
+
+</section>
+</div></main>
+<button id="menu" title="目录">☰</button>
+<button id="top" title="回到顶部">↑</button>
+<script>
+(function(){
+  var input=document.getElementById('q');
+  var links=[].slice.call(document.querySelectorAll('#toc .toc-chap a'));
+  var chaps=[].slice.call(document.querySelectorAll('.toc-chap'));
+  input.addEventListener('input',function(){
+    var q=input.value.trim().toLowerCase();
+    links.forEach(function(a){ a.parentNode.style.display = (!q || a.dataset.t.indexOf(q)>-1) ? '' : 'none'; });
+    chaps.forEach(function(c){
+      var any=[].slice.call(c.querySelectorAll('li')).some(function(li){return li.style.display!=='none';});
+      c.style.display = any ? '' : 'none';
+    });
+  });
+  input.addEventListener('keydown',function(e){
+    if(e.key==='Enter'){var a=links.filter(function(x){return x.parentNode.style.display!=='none';})[0]; if(a){location.href=a.getAttribute('href');}}
+  });
+  var map={}; links.forEach(function(a){ var h=a.getAttribute('href'); if(h.charAt(0)==='#'){ map[h.slice(1)]=a; } });
+  var obs=new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(e.isIntersecting){
+        links.forEach(function(a){a.classList.remove('active');});
+        var a=map[e.target.id]; if(a){a.classList.add('active');}
+      }
+    });
+  },{rootMargin:'0px 0px -70% 0px'});
+  document.querySelectorAll('section.doc').forEach(function(s){obs.observe(s);});
+  document.getElementById('top').addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+  document.getElementById('menu').addEventListener('click',function(){document.body.classList.toggle('nav-open');});
+  document.querySelectorAll('#toc a').forEach(function(a){a.addEventListener('click',function(){document.body.classList.remove('nav-open');});});
+})();
+</script>
+</body>
+</html>

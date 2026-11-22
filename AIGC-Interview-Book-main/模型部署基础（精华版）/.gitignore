@@ -1,0 +1,14 @@
+# Python scripts
+*.py
+
+# Patch files
+*.patch
+
+# Skills directory
+SKILLS/
+api-key
+*.docx
+prompt*.md
+
+# Generated image URL sidecar files
+*.url.txt
