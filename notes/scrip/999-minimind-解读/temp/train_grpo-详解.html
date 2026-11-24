@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_grpo.py 详解：没有 critic 的强化学习</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_grpo.py 详解：没有 critic 的强化学习</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#定位把-ppo-的-critic-换成组内比较">0. 定位：把 PPO 的 critic 换成「组内比较」</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#核心公式组内相对优势">1. 核心公式：组内相对优势</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#数据与采样">2. 数据与采样</a>
+<ul>
+<li class="lvl3"><a href="#数据只要-prompt">2.1 数据：只要 prompt</a></li>
+<li class="lvl3"><a href="#编码左填充-左截断">2.2 编码：左填充 + 左截断</a></li>
+<li class="lvl3"><a href="#采样一次-6-条">2.3 采样：一次 6 条</a></li>
+</ul></li>
+<li class="lvl2"><a href="#奖励与-ppo-同一套规则">3. 奖励：与 PPO 同一套规则</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#grpo_train_epoch-逐段">4. grpo_train_epoch 逐段</a>
+<ul>
+<li class="lvl3"><a href="#定位回答-token与-ppo-相同">4.1 定位回答 token（与 PPO 相同）</a></li>
+<li class="lvl3"><a href="#一次前向策略与参考">4.2 一次前向：策略与参考</a></li>
+<li class="lvl3"><a href="#组内优势">4.3 组内优势</a></li>
+<li class="lvl3"><a href="#kl-与-ratio">4.4 KL 与 ratio</a></li>
+<li class="lvl3"><a href="#两种损失grpo-与-cispo">4.5 两种损失：GRPO 与 CISPO</a></li>
+<li class="lvl3"><a href="#汇总与更新">4.6 汇总与更新</a></li>
+<li class="lvl3"><a href="#保存与权重同步">4.7 保存与权重同步</a></li>
+</ul></li>
+<li class="lvl2"><a href="#main与-ppo-的差异">5. main：与 PPO 的差异</a>
+<ul>
+<li class="lvl3"><a href="#参数速览">5.1 参数速览</a></li>
+<li class="lvl3"><a href="#三个模型">5.2 三个模型</a></li>
+<li class="lvl3"><a href="#调度器步数">5.3 调度器步数</a></li>
+<li class="lvl3"><a href="#一个容易忽略的配置">5.4 一个容易忽略的配置</a></li>
+<li class="lvl3"><a href="#ddp-与-rollout-同步">5.5 DDP 与 rollout 同步</a></li>
+</ul></li>
+<li class="lvl2"><a href="#超参为什么这么取">6. 超参为什么这么取</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#显存账">7. 显存账</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#坑">8. 坑</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#怎么判断-grpo-在学">9. 怎么判断 GRPO 在学</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#与-ppo-的逐项对照">10. 与 PPO 的逐项对照</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">11. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">12. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_grpo.py-详解没有-critic-的强化学习" class="level1">
+<h1><code>train_grpo.py</code> 详解：没有 critic 的强化学习</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_grpo.py</code>（321 行） 配套：<code>rollout_engine.py</code>、<code>RLAIFDataset</code>、<code>LMForRewardModel</code>、<code>rep_penalty</code> 说明：本文按源码讲解，不跑训练（本机显存放不下 1.8B 奖励模型，见第 8 节）。</p>
+</blockquote>
+<hr />
+<section id="定位把-ppo-的-critic-换成组内比较" class="level2">
+<h2>0. 定位：把 PPO 的 critic 换成「组内比较」</h2>
+<p>PPO 需要四个模型：actor、critic、ref、reward。 GRPO（Group Relative Policy Optimization）的核心洞察是：</p>
+<blockquote>
+<p><strong>不需要价值网络来估计基线——同一个问题采样多条回答，互相比较就够了。</strong></p>
+</blockquote>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>PPO</th>
+<th>GRPO</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>模型数</td>
+<td>4</td>
+<td><strong>3</strong>（actor / ref / reward）</td>
+</tr>
+<tr class="even">
+<td>基线来源</td>
+<td>critic 估价值 + GAE</td>
+<td><strong>同组回答的均值</strong></td>
+</tr>
+<tr class="odd">
+<td>每条 prompt 采样</td>
+<td>1 条</td>
+<td><strong>6 条</strong></td>
+</tr>
+<tr class="even">
+<td>一次 rollout 更新</td>
+<td>2 轮 × mini-batch</td>
+<td><strong>1 次</strong></td>
+</tr>
+<tr class="odd">
+<td>损失</td>
+<td>clip + value + KL</td>
+<td>clip 或 CISPO + KL</td>
+</tr>
+<tr class="even">
+<td>显存</td>
+<td>最高</td>
+<td>少一个模型</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>一题多答，组内排名；均值当基线，方差做归一。</strong></p>
+</blockquote>
+<hr />
+</section>
+<section id="核心公式组内相对优势" class="level2">
+<h2>1. 核心公式：组内相对优势</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>grouped_rewards <span class="op">=</span> rewards.view(<span class="op">-</span><span class="dv">1</span>, num_generations)          <span class="co"># (B, G)</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>mean_r <span class="op">=</span> grouped_rewards.mean(dim<span class="op">=</span><span class="dv">1</span>).repeat_interleave(G)    <span class="co"># 组内均值</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>std_r  <span class="op">=</span> grouped_rewards.std(dim<span class="op">=</span><span class="dv">1</span>, unbiased<span class="op">=</span><span class="va">False</span>).repeat_interleave(G)</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>advantages <span class="op">=</span> (rewards <span class="op">-</span> mean_r) <span class="op">/</span> (std_r <span class="op">+</span> <span class="fl">1e-4</span>)             <span class="co"># 标准化</span></span></code></pre></div>
+<p><strong>一句话</strong>：同一道题生成 6 个回答，第 i 个回答的优势 = 「它的分数」减去「这 6 个的平均」， 再除以标准差。高于平均为正，低于平均为负。</p>
+<p><strong>为什么这样可以替代 critic</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>方法</th>
+<th>基线估计</th>
+<th>成本</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>PPO</td>
+<td>训练一个价值网络 V(s)</td>
+<td>多一个模型 + 训练不稳定</td>
+</tr>
+<tr class="even">
+<td>GRPO</td>
+<td>同组样本的均值</td>
+<td>多采 5 条回答</td>
+</tr>
+</tbody>
+</table>
+<p>对「答案可自动验证」的任务（数学、代码、工具调用），多采样比训练 critic 划算得多。</p>
+<hr />
+</section>
+<section id="数据与采样" class="level2">
+<h2>2. 数据与采样</h2>
+<section id="数据只要-prompt" class="level3">
+<h3>2.1 数据：只要 prompt</h3>
+<p><code>RLAIFDataset</code> 返回 <code>{"prompt": str, "answer": ""}</code>——只要问题，答案由模型现场生成。 <code>thinking_ratio=0.9</code> 表示 90% 的样本在模板里开启思考。</p>
+</section>
+<section id="编码左填充-左截断" class="level3">
+<h3>2.2 编码：左填充 + 左截断</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>prompt_inputs <span class="op">=</span> tokenizer(prompts, return_tensors<span class="op">=</span><span class="st">&quot;pt&quot;</span>, padding<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>                          return_token_type_ids<span class="op">=</span><span class="va">False</span>, padding_side<span class="op">=</span><span class="st">&quot;left&quot;</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>                          add_special_tokens<span class="op">=</span><span class="va">False</span>).to(device)</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.max_seq_len:</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>    prompt_inputs[<span class="st">&quot;input_ids&quot;</span>] <span class="op">=</span> prompt_inputs[<span class="st">&quot;input_ids&quot;</span>][:, <span class="op">-</span>args.max_seq_len:]</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>    prompt_inputs[<span class="st">&quot;attention_mask&quot;</span>] <span class="op">=</span> prompt_inputs[<span class="st">&quot;attention_mask&quot;</span>][:, <span class="op">-</span>args.max_seq_len:]</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>padding_side="left"</code></td>
+<td>生成从末尾续写</td>
+</tr>
+<tr class="even">
+<td><code>[:, -max_seq_len:]</code></td>
+<td>超长时<strong>保留最近的部分</strong>（保留 system + 最近几轮）</td>
+</tr>
+<tr class="odd">
+<td><code>add_special_tokens=False</code></td>
+<td>模板里已有特殊标记</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="采样一次-6-条" class="level3">
+<h3>2.3 采样：一次 6 条</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>rollout_result <span class="op">=</span> rollout_engine.rollout(</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    prompt_ids<span class="op">=</span>prompt_inputs[<span class="st">&quot;input_ids&quot;</span>], attention_mask<span class="op">=</span>prompt_inputs[<span class="st">&quot;attention_mask&quot;</span>],</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    num_generations<span class="op">=</span>args.num_generations,        <span class="co"># 6</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>    max_new_tokens<span class="op">=</span>args.max_gen_len,             <span class="co"># 1024</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>    temperature<span class="op">=</span><span class="fl">0.8</span>)</span></code></pre></div>
+<p>返回仍然是那套：<code>output_ids</code>、<code>completion_ids</code>、<code>completions</code>、<code>prompt_lens</code>、 以及<strong>采样时的旧 log 概率</strong> <code>per_token_logps</code>。</p>
+<p><strong>为什么温度是 0.8 而不是 0</strong>：组内需要<strong>有差异</strong>。如果 6 条回答一模一样， 均值等于每条，优势全为 0——这一题就白采了。</p>
+<hr />
+</section>
+</section>
+<section id="奖励与-ppo-同一套规则" class="level2">
+<h2>3. 奖励：与 PPO 同一套规则</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>rewards <span class="op">=</span> calculate_rewards(prompts, completions, reward_model)   <span class="co"># (B*G,)</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>分值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>回答长度 20~800</td>
+<td>±0.5</td>
+</tr>
+<tr class="even">
+<td>思考长度 20~300</td>
+<td>+1.0 / -0.5</td>
+</tr>
+<tr class="odd">
+<td><code>&lt;think&gt;</code> 恰好一次</td>
+<td>±0.25</td>
+</tr>
+<tr class="even">
+<td>3-gram 重复</td>
+<td>-0 ~ -0.5</td>
+</tr>
+<tr class="odd">
+<td>奖励模型</td>
+<td>[-3, 3]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意形状</strong>：<code>completions</code> 长度是 <code>B × G</code>（每道题 6 条），所以奖励也是 <code>B*G</code>。</p>
+<hr />
+</section>
+<section id="grpo_train_epoch-逐段" class="level2">
+<h2>4. <code>grpo_train_epoch</code> 逐段</h2>
+<section id="定位回答-token与-ppo-相同" class="level3">
+<h3>4.1 定位回答 token（与 PPO 相同）</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>full_mask <span class="op">=</span> (outputs <span class="op">!=</span> pad_token_id).<span class="bu">long</span>()</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>logp_pos <span class="op">=</span> prompt_lens.unsqueeze(<span class="dv">1</span>) <span class="op">-</span> <span class="dv">1</span> <span class="op">+</span> arange(R)</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>full_mask.scatter_(<span class="dv">1</span>, logp_pos <span class="op">+</span> <span class="dv">1</span>, completion_mask)</span></code></pre></div>
+<p>回答第 t 个 token 在序列里的位置是 <code>P+t</code>，它的 logits 在 <code>P+t-1</code>。</p>
+</section>
+<section id="一次前向策略与参考" class="level3">
+<h3>4.2 一次前向：策略与参考</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> autocast_ctx:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> model(outputs, attention_mask<span class="op">=</span>full_mask)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    per_token_logps <span class="op">=</span> log_softmax(res.logits[:, :<span class="op">-</span><span class="dv">1</span>]).gather(<span class="dv">2</span>, outputs[:, <span class="dv">1</span>:]).gather(<span class="dv">1</span>, logp_pos)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> torch.no_grad():</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    ref_per_token_logps <span class="op">=</span> ...同上，用 ref_model...</span></code></pre></div>
+<p>拿到三份概率：</p>
+<table>
+<thead>
+<tr class="header">
+<th>变量</th>
+<th>来源</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>old_per_token_logps</code></td>
+<td>rollout 采样时</td>
+<td>ratio 的分母</td>
+</tr>
+<tr class="even">
+<td><code>per_token_logps</code></td>
+<td>当前策略前向</td>
+<td>ratio 的分子</td>
+</tr>
+<tr class="odd">
+<td><code>ref_per_token_logps</code></td>
+<td>参考模型</td>
+<td>KL 惩罚</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="组内优势" class="level3">
+<h3>4.3 组内优势</h3>
+<p>见第 1 节。两个细节：</p>
+<ul>
+<li><code>std(unbiased=False)</code>：用总体标准差（除以 G 而不是 G-1），G=6 时差别不大但更稳定；</li>
+<li><code>+1e-4</code>：防止组内全同分时除零。</li>
+</ul>
+</section>
+<section id="kl-与-ratio" class="level3">
+<h3>4.4 KL 与 ratio</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>kl_div <span class="op">=</span> ref_per_token_logps <span class="op">-</span> per_token_logps</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>per_token_kl <span class="op">=</span> torch.exp(kl_div) <span class="op">-</span> kl_div <span class="op">-</span> <span class="dv">1</span>     <span class="co"># k3 估计</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>ratio <span class="op">=</span> torch.exp(per_token_logps <span class="op">-</span> old_per_token_logps)</span></code></pre></div>
+<p><strong>k3 估计量的好处</strong>：永远非负、无偏、数值稳定。比直接 <code>-kl_div</code> 好用。</p>
+</section>
+<section id="两种损失grpo-与-cispo" class="level3">
+<h3>4.5 两种损失：GRPO 与 CISPO</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.loss_type <span class="op">==</span> <span class="st">&quot;cispo&quot;</span>:</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    clamped_ratio <span class="op">=</span> torch.clamp(ratio, <span class="bu">max</span><span class="op">=</span>args.epsilon_high).detach()</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    per_token_loss <span class="op">=</span> <span class="op">-</span>(clamped_ratio <span class="op">*</span> advantages.unsqueeze(<span class="dv">1</span>) <span class="op">*</span> per_token_logps</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>                       <span class="op">-</span> args.beta <span class="op">*</span> per_token_kl)</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:  <span class="co"># grpo</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    clipped_ratio <span class="op">=</span> torch.clamp(ratio, <span class="dv">1</span> <span class="op">-</span> args.epsilon, <span class="dv">1</span> <span class="op">+</span> args.epsilon)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    per_token_loss <span class="op">=</span> <span class="op">-</span>(torch.<span class="bu">min</span>(ratio <span class="op">*</span> A, clipped_ratio <span class="op">*</span> A)</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>                       <span class="op">-</span> args.beta <span class="op">*</span> per_token_kl)</span></code></pre></div>
+<p><strong>两者的本质差异</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th></th>
+<th>GRPO（PPO 式裁剪）</th>
+<th>CISPO</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>裁剪</td>
+<td>双侧 <code>[1-ε, 1+ε]</code></td>
+<td>只截上界 <code>ε_high=5.0</code></td>
+</tr>
+<tr class="even">
+<td>ratio 是否 detach</td>
+<td>否（但 min 后可能梯度为 0）</td>
+<td><strong>是</strong></td>
+</tr>
+<tr class="odd">
+<td>梯度路径</td>
+<td>超出信任域的 token 梯度被<strong>截断为 0</strong></td>
+<td>所有权重的梯度都<strong>经过 logp</strong> 回传</td>
+</tr>
+<tr class="even">
+<td>效果</td>
+<td>保守、稳</td>
+<td>保留更多学习信号，尤其负优势样本</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CISPO 的动机</strong>：PPO 式裁剪会把「ratio 跑太远」的 token 的梯度直接清零， 在 GRPO 这种「组内差异大」的场景里，容易丢掉有价值的样本。 CISPO 把 ratio 当<strong>常数权重</strong>（detach + 只截上界），让每个 token 都能贡献梯度。</p>
+<p><code>epsilon_high=5.0</code> 很宽，实际只防极端值。</p>
+</section>
+<section id="汇总与更新" class="level3">
+<h3>4.6 汇总与更新</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>policy_loss <span class="op">=</span> ((per_token_loss <span class="op">*</span> completion_mask).<span class="bu">sum</span>(<span class="dv">1</span>) <span class="op">/</span> completion_mask.<span class="bu">sum</span>(<span class="dv">1</span>).clamp(<span class="bu">min</span><span class="op">=</span><span class="dv">1</span>)).mean()</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> (policy_loss <span class="op">+</span> aux_loss) <span class="op">/</span> accumulation_steps</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>loss.backward()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> step <span class="op">%</span> accumulation_steps <span class="op">==</span> <span class="dv">0</span> <span class="kw">or</span> step <span class="op">==</span> iters:</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    clip_grad_norm_(model.parameters(), grad_clip)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    optimizer.step()<span class="op">;</span> scheduler.step()<span class="op">;</span> optimizer.zero_grad()</span></code></pre></div>
+<p><strong>注意</strong>：GRPO <strong>没有</strong> PPO 那样的 <code>ppo_update_iters</code> 和 mini-batch 循环—— 一次 rollout 只做一次更新。这也是它比 PPO 简单的地方。</p>
+</section>
+<section id="保存与权重同步" class="level3">
+<h3>4.7 保存与权重同步</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>torch.save({k: v.half().cpu() ...}, <span class="ss">f&#39;</span><span class="sc">{</span>save_dir<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>save_weight<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span>hidden<span class="sc">}</span><span class="ss">.pth&#39;</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>lm_checkpoint(..., model<span class="op">=</span>model, optimizer<span class="op">=</span>optimizer, scheduler<span class="op">=</span>scheduler)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>...</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> step <span class="op">%</span> save_interval <span class="op">==</span> <span class="dv">0</span> <span class="kw">or</span> step <span class="op">==</span> iters:</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    rollout_engine.update_policy(model)      <span class="co"># 同步给 SGLang</span></span></code></pre></div>
+<p>保存的 actor 权重前缀是 <code>grpo</code>（<code>grpo_768.pth</code>），可作为后续 DPO/评测的输入。</p>
+<hr />
+</section>
+</section>
+<section id="main与-ppo-的差异" class="level2">
+<h2>5. <code>main</code>：与 PPO 的差异</h2>
+<section id="参数速览" class="level3">
+<h3>5.1 参数速览</h3>
+<table>
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>默认</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>num_generations</code></td>
+<td><strong>6</strong></td>
+<td>每题采样条数</td>
+</tr>
+<tr class="even">
+<td><code>beta</code></td>
+<td>0.1</td>
+<td>KL 惩罚系数</td>
+</tr>
+<tr class="odd">
+<td><code>loss_type</code></td>
+<td><strong>cispo</strong></td>
+<td><code>grpo</code> / <code>cispo</code></td>
+</tr>
+<tr class="even">
+<td><code>epsilon</code></td>
+<td>0.2</td>
+<td>GRPO 裁剪</td>
+</tr>
+<tr class="odd">
+<td><code>epsilon_high</code></td>
+<td>5.0</td>
+<td>CISPO 上界</td>
+</tr>
+<tr class="even">
+<td><code>learning_rate</code></td>
+<td>3e-7</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>max_seq_len</code> / <code>max_gen_len</code></td>
+<td>768 / 1024</td>
+<td>prompt / 生成</td>
+</tr>
+<tr class="even">
+<td><code>temperature</code></td>
+<td>0.8（写死）</td>
+<td>采样温度</td>
+</tr>
+<tr class="odd">
+<td><code>thinking_ratio</code></td>
+<td>0.9</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="三个模型" class="level3">
+<h3>5.2 三个模型</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>model, tokenizer <span class="op">=</span> init_model(lm_config, base_weight)       <span class="co"># 策略</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ref_model <span class="op">=</span> init_model(...).<span class="bu">eval</span>().requires_grad_(<span class="va">False</span>)    <span class="co"># 参考</span></span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>reward_model <span class="op">=</span> LMForRewardModel(path, dtype<span class="op">=</span>torch.float16)  <span class="co"># 裁判</span></span></code></pre></div>
+<p><strong>没有 critic</strong>——这就是和 PPO 最大的区别。</p>
+</section>
+<section id="调度器步数" class="level3">
+<h3>5.3 调度器步数</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>total_optimizer_steps <span class="op">=</span> ceil(iters <span class="op">/</span> accumulation_steps) <span class="op">*</span> epochs</span></code></pre></div>
+<p>比 PPO 简单：没有 <code>ppo_update_iters</code>、没有 mini-batch 系数，因为每步只更新一次。</p>
+</section>
+<section id="一个容易忽略的配置" class="level3">
+<h3>5.4 一个容易忽略的配置</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>lm_config <span class="op">=</span> MiniMindConfig(..., max_seq_len<span class="op">=</span>args.max_seq_len <span class="op">+</span> args.max_gen_len, ...)</span></code></pre></div>
+<p><code>max_seq_len=1792</code> 被传给 <code>RLAIFDataset</code> 用作编码上限——<strong>prompt + 生成的总长</strong>。 （<code>MiniMindConfig</code> 本身没有这个字段，它通过 <code>**kwargs</code> 存在 <code>PretrainedConfig</code> 上。）</p>
+</section>
+<section id="ddp-与-rollout-同步" class="level3">
+<h3>5.5 DDP 与 rollout 同步</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> DistributedDataParallel(model, device_ids<span class="op">=</span>[local_rank], broadcast_buffers<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>rollout_engine.update_policy(model)</span></code></pre></div>
+<p><code>broadcast_buffers=False</code> 的理由同 PPO：RoPE buffer 各卡一致，不需要每步广播。</p>
+<hr />
+</section>
+</section>
+<section id="超参为什么这么取" class="level2">
+<h2>6. 超参为什么这么取</h2>
+<table>
+<thead>
+<tr class="header">
+<th>超参</th>
+<th>值</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>G</td>
+<td>6</td>
+<td>太少组内统计不稳，太多采样成本翻倍</td>
+</tr>
+<tr class="even">
+<td>temperature</td>
+<td>0.8</td>
+<td>保证组内有差异</td>
+</tr>
+<tr class="odd">
+<td>beta</td>
+<td>0.1</td>
+<td>比 PPO 的 0.02 更大：GRPO 一次 rollout 只更新一次，作者选择更紧的 KL 约束</td>
+</tr>
+<tr class="even">
+<td>epsilon</td>
+<td>0.2</td>
+<td>标准 PPO 值</td>
+</tr>
+<tr class="odd">
+<td>epsilon_high</td>
+<td>5.0</td>
+<td>CISPO 只防极端</td>
+</tr>
+<tr class="even">
+<td>lr</td>
+<td>3e-7</td>
+<td>RL 通用的小学习率</td>
+</tr>
+<tr class="odd">
+<td>epochs</td>
+<td>1</td>
+<td>RL 数据是「每题现场生成」，多轮意义不大</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="显存账" class="level2">
+<h2>7. 显存账</h2>
+<table>
+<thead>
+<tr class="header">
+<th>组件</th>
+<th>占用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>策略（fp16 前向 + fp32 主权重 + Adam）</td>
+<td>~1 GB</td>
+</tr>
+<tr class="even">
+<td>参考（fp16，冻结）</td>
+<td>~0.13 GB</td>
+</tr>
+<tr class="odd">
+<td><strong>奖励模型（1.8B fp16）</strong></td>
+<td><strong>~3.6 GB</strong></td>
+</tr>
+<tr class="even">
+<td>激活（6 条 × 1024 token × batch 2）</td>
+<td>1~2 GB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：与 PPO 一样，本机 4GB 跑不了——瓶颈是奖励模型。 想在本机体验 GRPO 的思路，建议用<strong>纯规则奖励</strong>的任务（如数学题，<code>train_agent.py</code> 的做法）， 把 RM 去掉。</p>
+<hr />
+</section>
+<section id="坑" class="level2">
+<h2>8. 坑</h2>
+<table>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>现象</th>
+<th>原因 / 处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>组内奖励全相同</strong></td>
+<td>advantages 全 0，loss 只有 KL 项</td>
+<td>采样温度太低 / 奖励区分度差；提高温度或换任务</td>
+</tr>
+<tr class="even">
+<td>奖励方差过小</td>
+<td>学习极慢</td>
+<td>同上；检查 RM 是否给所有回答打同一个分</td>
+</tr>
+<tr class="odd">
+<td>ratio 不≈1</td>
+<td>KL 曲线异常</td>
+<td>采样与更新时的精度/模式不一致；<code>dropout</code> 必须为 0</td>
+</tr>
+<tr class="even">
+<td>只保存 actor</td>
+<td>想续训找不到 critic</td>
+<td>GRPO 本来就没有 critic；resume 里有 optimizer/scheduler</td>
+</tr>
+<tr class="odd">
+<td><code>use_sglang</code> 参数</td>
+<td>传了但函数体没用到</td>
+<td>代码遗留；引擎类型由 <code>rollout_engine</code> 对象决定</td>
+</tr>
+<tr class="even">
+<td>prompt 超长</td>
+<td>被左截断，丢了 system</td>
+<td><code>max_seq_len</code> 太小；注意 <code>[:, -max_seq_len:]</code> 保留尾部</td>
+</tr>
+<tr class="odd">
+<td><code>long</code> 的 completion 被截断</td>
+<td>没有 eos，mask 覆盖到末尾</td>
+<td><code>max_gen_len</code> 要够；否则奖励长度项也会异常</td>
+</tr>
+<tr class="even">
+<td>奖励模型路径</td>
+<td>默认路径不存在</td>
+<td>需自行下载 internlm2-1.8B-reward</td>
+</tr>
+<tr class="odd">
+<td>长度偏置</td>
+<td>模型学会写长</td>
+<td>奖励里有长度塑形，但只在 20~800 区间</td>
+</tr>
+</tbody>
+</table>
+<p><strong>其中第一条最重要</strong>：GRPO 的全部信号来自「组内差异」。如果 6 条回答得分一样， 数学上优势就是 0，训练等于空转。排查顺序：先看日志里的 <code>Reward</code> 和 <code>Adv Std</code>。</p>
+<hr />
+</section>
+<section id="怎么判断-grpo-在学" class="level2">
+<h2>9. 怎么判断 GRPO 在学</h2>
+<p>日志每步打印：</p>
+<pre><code>Reward: 0.42, KL_ref: 0.0012, Adv Std: 0.83, Adv Mean: 0.00,
+Actor Loss: -0.02, Avg Response Len: 156.3, Learning Rate: 3.0e-7</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>指标</th>
+<th>健康表现</th>
+<th>异常</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>Reward</code></td>
+<td>缓慢上升</td>
+<td>长期不动 → 奖励没区分度</td>
+</tr>
+<tr class="even">
+<td><code>Adv Std</code></td>
+<td>≈1（已标准化）</td>
+<td>接近 0 → 组内无差异</td>
+</tr>
+<tr class="odd">
+<td><code>Adv Mean</code></td>
+<td>≈ 0</td>
+<td>明显偏离 0 → 归一化有问题</td>
+</tr>
+<tr class="even">
+<td><code>KL_ref</code></td>
+<td>缓慢上升但很小</td>
+<td>快速上升 → 偏离参考太远，调大 beta</td>
+</tr>
+<tr class="odd">
+<td><code>Avg Response Len</code></td>
+<td>稳定或缓慢增长</td>
+<td>暴涨 → 模型在「凑长度」骗奖励</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="与-ppo-的逐项对照" class="level2">
+<h2>10. 与 PPO 的逐项对照</h2>
+<table>
+<thead>
+<tr class="header">
+<th>环节</th>
+<th>PPO</th>
+<th>GRPO</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>采样数量</td>
+<td>1 条/prompt</td>
+<td>6 条/prompt</td>
+</tr>
+<tr class="even">
+<td>优势</td>
+<td>critic + GAE</td>
+<td>组内标准化</td>
+</tr>
+<tr class="odd">
+<td>价值损失</td>
+<td>有</td>
+<td><strong>无</strong></td>
+</tr>
+<tr class="even">
+<td>更新轮数</td>
+<td>2 轮 × mini-batch</td>
+<td>1 次</td>
+</tr>
+<tr class="odd">
+<td>KL 系数</td>
+<td>0.02</td>
+<td>0.1</td>
+</tr>
+<tr class="even">
+<td>损失</td>
+<td>clip + vf·value + KL</td>
+<td>clip/CISPO + KL</td>
+</tr>
+<tr class="odd">
+<td>调度器步数</td>
+<td>含 update_iters 与 mb_factor</td>
+<td>只含 accumulation</td>
+</tr>
+<tr class="even">
+<td>显存</td>
+<td>4 模型</td>
+<td>3 模型</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一句话总结</strong>：GRPO = 用「多采样 + 组内比较」换掉「critic + GAE」， 代码少了 120 行，显存少一个模型，代价是采样量 ×6。</p>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>11. 自测题</h2>
+<ol type="1">
+<li>GRPO 用什么替代了 critic？</li>
+<li>为什么每条 prompt 要采样 6 条？</li>
+<li>组内奖励全相同时会发生什么？</li>
+<li><code>std</code> 为什么用 <code>unbiased=False</code>？<code>+1e-4</code> 防什么？</li>
+<li>CISPO 与 GRPO 损失的三个差异是什么？</li>
+<li>CISPO 为什么要把 ratio detach？</li>
+<li>KL 为什么用 <code>exp(kl)-kl-1</code>？</li>
+<li>为什么一次 rollout 只更新一次？</li>
+<li><code>max_seq_len</code> 在 config 里为什么是 prompt+gen？</li>
+<li><code>use_sglang</code> 参数为什么没被用到？</li>
+<li>判断「训练是否在学」看哪三个指标？</li>
+<li>本机 4GB 为什么跑不了？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>同一 prompt 多条回答的组内均值/标准差。</li>
+<li>组内比较需要样本，且能降低基线估计的方差。</li>
+<li>优势全 0，只剩 KL 项，模型不学。</li>
+<li>总体标准差；防止除零。</li>
+<li>裁剪单侧 vs 双侧；ratio 是否 detach；梯度是否保留。</li>
+<li>让 ratio 只作权重，梯度全部经由 logp，避免裁剪清零。</li>
+<li>非负、无偏、稳定。</li>
+<li>采样贵，且 GRPO 用一次更新换取稳定。</li>
+<li>编码上限要覆盖 prompt + 生成。</li>
+<li>遗留参数；实际由 <code>rollout_engine</code> 对象决定。</li>
+<li>Reward、Adv Std、KL_ref。</li>
+<li>奖励模型 1.8B fp16 ≈ 3.6GB，加上其它模型超 4GB。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>12. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>段落</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据</td>
+<td>只要 prompt，thinking_ratio=0.9</td>
+</tr>
+<tr class="even">
+<td>采样</td>
+<td>左填充、6 条、温度 0.8</td>
+</tr>
+<tr class="odd">
+<td>奖励</td>
+<td>规则 + RM，形状 B×G</td>
+</tr>
+<tr class="even">
+<td>优势</td>
+<td><code>(r - 组均值) / (组标准差)</code></td>
+</tr>
+<tr class="odd">
+<td>KL</td>
+<td>k3：<code>exp(kl)-kl-1</code></td>
+</tr>
+<tr class="even">
+<td>损失</td>
+<td>默认 CISPO；可选 PPO 式 GRPO</td>
+</tr>
+<tr class="odd">
+<td>更新</td>
+<td>每步一次，无 mini-batch 循环</td>
+</tr>
+<tr class="even">
+<td>调度</td>
+<td><code>ceil(iters/accum) × epochs</code></td>
+</tr>
+<tr class="odd">
+<td>保存</td>
+<td><code>grpo_768.pth</code> + resume</td>
+</tr>
+<tr class="even">
+<td>显存</td>
+<td>3 模型，RM 占 3.6GB</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

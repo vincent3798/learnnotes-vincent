@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_pretrain.py 详解：最小可用的预训练闭环</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_pretrain.py 详解：最小可用的预训练闭环</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#定位整条训练链的第一站">0. 定位：整条训练链的第一站</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#文件结构一个函数-一个-main">1. 文件结构：一个函数 + 一个 main</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#参数表每一个默认值都有理由">2. 参数表：每一个默认值都有理由</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#main-的九段顺序本身就是知识">3. main 的九段：顺序本身就是知识</a>
+<ul>
+<li class="lvl3"><a href="#第-8-段里那个-train_sampler-or-indices">3.1 第 8 段里那个 train_sampler or indices</a></li>
+</ul></li>
+<li class="lvl2"><a href="#train_epoch-逐行">4. train_epoch 逐行</a>
+<ul>
+<li class="lvl3"><a href="#学习率每步手写进-param_group">4.1 学习率：每步手写进 param_group</a></li>
+<li class="lvl3"><a href="#前向与损失除以累积步数">4.2 前向与损失：除以累积步数</a></li>
+<li class="lvl3"><a href="#反向与更新五个动作的顺序不能乱">4.3 反向与更新：五个动作的顺序不能乱</a></li>
+<li class="lvl3"><a href="#日志三个数字的拆解">4.4 日志：三个数字的拆解</a></li>
+<li class="lvl3"><a href="#保存半精度-双文件">4.5 保存：半精度 + 双文件</a></li>
+<li class="lvl3"><a href="#最后两行-del">4.6 最后两行 del</a></li>
+</ul></li>
+<li class="lvl2"><a href="#数据与损失是怎么配合的">5. 数据与损失是怎么配合的</a>
+<ul>
+<li class="lvl3"><a href="#pretraindataset-做了什么">5.1 PretrainDataset 做了什么</a></li>
+<li class="lvl3"><a href="#模型内部的错位">5.2 模型内部的错位</a></li>
+<li class="lvl3"><a href="#为什么要看-logits_loss-而不是总-loss">5.3 为什么要看 logits_loss 而不是总 loss</a></li>
+</ul></li>
+<li class="lvl2"><a href="#断点续训三个组件配合">6. 断点续训：三个组件配合</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#本机实测4gb-卡到底能不能跑">7. 本机实测：4GB 卡到底能不能跑</a>
+<ul>
+<li class="lvl3"><a href="#初始-loss-校验">7.1 初始 loss 校验</a></li>
+<li class="lvl3"><a href="#每步耗时与显存同配置模拟seq340lr5e-4">7.2 每步耗时与显存（同配置模拟，seq=340，lr=5e-4）</a></li>
+<li class="lvl3"><a href="#一个容易误读的现象">7.3 一个容易误读的现象</a></li>
+</ul></li>
+<li class="lvl2"><a href="#坑与注意事项">8. 坑与注意事项</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#它和-train_full_sft.py-差多少">9. 它和 train_full_sft.py 差多少</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">10. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">11. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_pretrain.py-详解最小可用的预训练闭环" class="level1">
+<h1><code>train_pretrain.py</code> 详解：最小可用的预训练闭环</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_pretrain.py</code>（165 行） 环境：本机 conda <code>swift_env</code>（torch 2.6.0+cu124 / GTX 1650 4GB） 说明：仓库未附带数据集，本文的训练耗时与显存数字来自「同配置模拟步」的一次性实测， 模型结构、超参、循环逻辑均按源码原文。</p>
+</blockquote>
+<hr />
+<section id="定位整条训练链的第一站" class="level2">
+<h2>0. 定位：整条训练链的第一站</h2>
+<p>MiniMind 有 8 个训练脚本，<strong><code>train_pretrain.py</code> 是其中最短、也最干净的一个</strong>： 没有 loss mask、没有参考模型、没有奖励模型。后面所有脚本都是它的「加法」。</p>
+<table>
+<thead>
+<tr class="header">
+<th>脚本</th>
+<th>相对 pretrain 多了什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>train_full_sft</code></td>
+<td>换 Dataset（只对回答算 loss）+ 降学习率</td>
+</tr>
+<tr class="even">
+<td><code>train_lora</code></td>
+<td>注入 LoRA、只优化适配器</td>
+</tr>
+<tr class="odd">
+<td><code>train_distillation</code></td>
+<td>多一个教师模型 + KL 损失</td>
+</tr>
+<tr class="even">
+<td><code>train_dpo</code></td>
+<td>多一个参考模型 + 偏好对</td>
+</tr>
+<tr class="odd">
+<td><code>train_ppo</code> / <code>train_grpo</code></td>
+<td>采样 + 奖励 + 优势估计</td>
+</tr>
+<tr class="even">
+<td><code>train_agent</code></td>
+<td>多轮工具调用 + 规则奖励</td>
+</tr>
+</tbody>
+</table>
+<p><strong>所以读它的价值是</strong>：把「一个训练脚本骨架」刻进脑子，后面每加一个算法， 你只需要盯「损失函数那十几行」。</p>
+<hr />
+</section>
+<section id="文件结构一个函数-一个-main" class="level2">
+<h2>1. 文件结构：一个函数 + 一个 main</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>train_epoch(epoch, loader, iters, start_step<span class="op">=</span><span class="dv">0</span>, wandb<span class="op">=</span><span class="va">None</span>)   <span class="co"># 165 行里的第 24~72 行</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">__name__</span> <span class="op">==</span> <span class="st">&quot;__main__&quot;</span>:</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>    ... <span class="dv">9</span> 段初始化 ... 然后 <span class="cf">for</span> epoch: train_epoch(...)</span></code></pre></div>
+<p>顶层还有三行「脚手架」：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>__package__ <span class="op">=</span> <span class="st">&quot;trainer&quot;</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>sys.path.append(os.path.abspath(os.path.join(os.path.dirname(<span class="va">__file__</span>), <span class="st">&#39;..&#39;</span>)))</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> datasets  <span class="co"># noqa: F401  # Windows pyarrow/torch DLL conflict workaround (issue #771)</span></span></code></pre></div>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>行</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>__package__ = "trainer"</code></td>
+<td>让脚本以「包内模块」身份运行，相对导入才不报错</td>
+</tr>
+<tr class="even">
+<td><code>sys.path.append(...)</code></td>
+<td>把项目根目录加进搜索路径，才能 <code>from model.xxx import</code></td>
+</tr>
+<tr class="odd">
+<td><code>import datasets</code> 放在 torch 前</td>
+<td>Windows 下 pyarrow 与 torch 的 DLL 顺序冲突，先导入 pyarrow 系可绕开</td>
+</tr>
+</tbody>
+</table>
+<p>最后一行是<strong>平台特定 workaround</strong>，注释里甚至带上了 issue 编号——说明是踩过的真实坑。</p>
+<hr />
+</section>
+<section id="参数表每一个默认值都有理由" class="level2">
+<h2>2. 参数表：每一个默认值都有理由</h2>
+<table>
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>默认</th>
+<th>含义</th>
+<th>为什么是这个值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>save_dir</code></td>
+<td><code>../out</code></td>
+<td>权重目录</td>
+<td>相对 trainer/ 运行</td>
+</tr>
+<tr class="even">
+<td><code>save_weight</code></td>
+<td><code>pretrain</code></td>
+<td>文件名前缀</td>
+<td>产出 <code>pretrain_768.pth</code></td>
+</tr>
+<tr class="odd">
+<td><code>epochs</code></td>
+<td>2</td>
+<td>轮数</td>
+<td>mini 数据集 2 轮足够冒烟</td>
+</tr>
+<tr class="even">
+<td><code>batch_size</code></td>
+<td><strong>32</strong></td>
+<td>每卡微批</td>
+<td>3090 24GB 下的甜点</td>
+</tr>
+<tr class="odd">
+<td><code>learning_rate</code></td>
+<td><strong>5e-4</strong></td>
+<td>初始 lr</td>
+<td>从零训练要大步</td>
+</tr>
+<tr class="even">
+<td><code>warmup_ratio</code></td>
+<td>0.0</td>
+<td>预热占比</td>
+<td>默认关，小模型可省</td>
+</tr>
+<tr class="odd">
+<td><code>dtype</code></td>
+<td>bfloat16</td>
+<td>混合精度</td>
+<td>会被 <code>resolve_dtype</code> 降级</td>
+</tr>
+<tr class="even">
+<td><code>accumulation_steps</code></td>
+<td><strong>8</strong></td>
+<td>梯度累积</td>
+<td>等效 batch 32×8=256</td>
+</tr>
+<tr class="odd">
+<td><code>grad_clip</code></td>
+<td>1.0</td>
+<td>梯度裁剪</td>
+<td>防早期爆炸</td>
+</tr>
+<tr class="even">
+<td><code>max_seq_len</code></td>
+<td><strong>340</strong></td>
+<td>序列长度</td>
+<td>中文 1 token ≈ 1.5~1.7 字</td>
+</tr>
+<tr class="odd">
+<td><code>hidden_size</code> / <code>num_hidden_layers</code></td>
+<td>768 / 8</td>
+<td>模型规模</td>
+<td>对应 64M</td>
+</tr>
+<tr class="even">
+<td><code>use_moe</code></td>
+<td>0</td>
+<td>是否 MoE</td>
+<td>默认 Dense</td>
+</tr>
+<tr class="odd">
+<td><code>data_path</code></td>
+<td><code>pretrain_t2t_mini.jsonl</code></td>
+<td>语料</td>
+<td>需自行下载</td>
+</tr>
+<tr class="even">
+<td><code>from_weight</code></td>
+<td><code>none</code></td>
+<td>初始权重</td>
+<td>预训练当然从随机开始</td>
+</tr>
+<tr class="odd">
+<td><code>from_resume</code></td>
+<td>0</td>
+<td>断点续训</td>
+<td>见第 5 节</td>
+</tr>
+<tr class="even">
+<td><code>use_compile</code></td>
+<td>0</td>
+<td>torch.compile</td>
+<td>Windows 上开了会失败</td>
+</tr>
+<tr class="odd">
+<td><code>log_interval</code> / <code>save_interval</code></td>
+<td>100 / 1000</td>
+<td>打印/保存间隔</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>两个最容易被忽略的默认值</strong>：</p>
+<ul>
+<li><code>batch_size=32</code> 是按 3090 定的，<strong>在 4GB 卡上必 OOM</strong>（见第 7 节实测）；</li>
+<li><code>max_seq_len=340</code> 不是随便取的，注释里写了换算：340 token ≈ 500~600 个汉字。</li>
+</ul>
+<hr />
+</section>
+<section id="main-的九段顺序本身就是知识" class="level2">
+<h2>3. <code>main</code> 的九段：顺序本身就是知识</h2>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 分布式 + 种子</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>local_rank <span class="op">=</span> init_distributed_mode()</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> dist.is_initialized(): args.device <span class="op">=</span> <span class="ss">f&quot;cuda:</span><span class="sc">{</span>local_rank<span class="sc">}</span><span class="ss">&quot;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>setup_seed(args.seed <span class="op">+</span> (dist.get_rank() <span class="cf">if</span> dist.is_initialized() <span class="cf">else</span> <span class="dv">0</span>))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 目录 + 配置 + 探测断点</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>os.makedirs(args.save_dir, exist_ok<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>lm_config <span class="op">=</span> MiniMindConfig(hidden_size<span class="op">=</span>..., num_hidden_layers<span class="op">=</span>..., use_moe<span class="op">=</span>...)</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>ckp_data <span class="op">=</span> lm_checkpoint(...) <span class="cf">if</span> args.from_resume <span class="op">==</span> <span class="dv">1</span> <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 精度</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>args.dtype <span class="op">=</span> resolve_dtype(args.dtype, args.device)</span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>dtype <span class="op">=</span> torch.bfloat16 <span class="cf">if</span> args.dtype <span class="op">==</span> <span class="st">&quot;bfloat16&quot;</span> <span class="cf">else</span> torch.float16</span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>autocast_ctx <span class="op">=</span> nullcontext() <span class="cf">if</span> device_type <span class="op">==</span> <span class="st">&quot;cpu&quot;</span> <span class="cf">else</span> torch.cuda.amp.autocast(dtype<span class="op">=</span>dtype)</span>
+<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 日志</span></span>
+<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>wandb <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.use_wandb <span class="kw">and</span> is_main_process():</span>
+<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>    <span class="im">import</span> swanlab <span class="im">as</span> wandb</span>
+<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    wandb.init(..., <span class="bu">id</span><span class="op">=</span>wandb_id, resume<span class="op">=</span>...)</span>
+<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 模型 / 数据 / 优化器</span></span>
+<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>model, tokenizer <span class="op">=</span> init_model(lm_config, args.from_weight, device<span class="op">=</span>args.device)</span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>train_ds <span class="op">=</span> PretrainDataset(args.data_path, tokenizer, max_length<span class="op">=</span>args.max_seq_len)</span>
+<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>train_sampler <span class="op">=</span> DistributedSampler(train_ds) <span class="cf">if</span> dist.is_initialized() <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>scaler <span class="op">=</span> torch.cuda.amp.GradScaler(enabled<span class="op">=</span>(args.dtype <span class="op">==</span> <span class="st">&#39;float16&#39;</span>))</span>
+<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> optim.AdamW(model.parameters(), lr<span class="op">=</span>args.learning_rate)</span>
+<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 恢复状态</span></span>
+<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> ckp_data:</span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    model.load_state_dict(ckp_data[<span class="st">&#39;model&#39;</span>])</span>
+<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    optimizer.load_state_dict(ckp_data[<span class="st">&#39;optimizer&#39;</span>])</span>
+<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> ckp_data.get(<span class="st">&#39;scaler&#39;</span>): scaler.load_state_dict(ckp_data[<span class="st">&#39;scaler&#39;</span>])</span>
+<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>    start_epoch, start_step <span class="op">=</span> ckp_data[<span class="st">&#39;epoch&#39;</span>], ckp_data.get(<span class="st">&#39;step&#39;</span>, <span class="dv">0</span>)</span>
+<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. 编译 + DDP</span></span>
+<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.use_compile <span class="op">==</span> <span class="dv">1</span>: model <span class="op">=</span> torch.<span class="bu">compile</span>(model)</span>
+<span id="cb3-38"><a href="#cb3-38" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> dist.is_initialized(): model <span class="op">=</span> DistributedDataParallel(model, device_ids<span class="op">=</span>[local_rank])</span>
+<span id="cb3-39"><a href="#cb3-39" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-40"><a href="#cb3-40" aria-hidden="true" tabindex="-1"></a><span class="co"># 8. 训练</span></span>
+<span id="cb3-41"><a href="#cb3-41" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(start_epoch, args.epochs):</span>
+<span id="cb3-42"><a href="#cb3-42" aria-hidden="true" tabindex="-1"></a>    train_sampler <span class="kw">and</span> train_sampler.set_epoch(epoch)</span>
+<span id="cb3-43"><a href="#cb3-43" aria-hidden="true" tabindex="-1"></a>    setup_seed(args.seed <span class="op">+</span> epoch)<span class="op">;</span> indices <span class="op">=</span> torch.randperm(<span class="bu">len</span>(train_ds)).tolist()</span>
+<span id="cb3-44"><a href="#cb3-44" aria-hidden="true" tabindex="-1"></a>    skip <span class="op">=</span> start_step <span class="cf">if</span> (epoch <span class="op">==</span> start_epoch <span class="kw">and</span> start_step <span class="op">&gt;</span> <span class="dv">0</span>) <span class="cf">else</span> <span class="dv">0</span></span>
+<span id="cb3-45"><a href="#cb3-45" aria-hidden="true" tabindex="-1"></a>    batch_sampler <span class="op">=</span> SkipBatchSampler(train_sampler <span class="kw">or</span> indices, args.batch_size, skip)</span>
+<span id="cb3-46"><a href="#cb3-46" aria-hidden="true" tabindex="-1"></a>    loader <span class="op">=</span> DataLoader(train_ds, batch_sampler<span class="op">=</span>batch_sampler, num_workers<span class="op">=</span>args.num_workers, pin_memory<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb3-47"><a href="#cb3-47" aria-hidden="true" tabindex="-1"></a>    train_epoch(epoch, loader, <span class="bu">len</span>(loader) <span class="op">+</span> skip, start_step, wandb)</span>
+<span id="cb3-48"><a href="#cb3-48" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-49"><a href="#cb3-49" aria-hidden="true" tabindex="-1"></a><span class="co"># 9. 收尾</span></span>
+<span id="cb3-50"><a href="#cb3-50" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> dist.is_initialized(): dist.barrier()<span class="op">;</span> dist.destroy_process_group()</span></code></pre></div>
+<p><strong>为什么是这个顺序</strong>（每一处顺序错了都会出问题）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>顺序</th>
+<th>如果错了</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>先起分布式，再设种子</td>
+<td>每张卡的随机种子会相同，数据增强/初始化失去差异性</td>
+</tr>
+<tr class="even">
+<td>先探测断点，再建模型</td>
+<td>需要知道 <code>lm_config</code> 才能拼出检查点文件名</td>
+</tr>
+<tr class="odd">
+<td>先解析 dtype，再建 autocast</td>
+<td>会用错精度</td>
+</tr>
+<tr class="even">
+<td>先建模型，再恢复状态</td>
+<td>没模型就没处加载</td>
+</tr>
+<tr class="odd">
+<td><code>torch.compile</code> 在 DDP 之前</td>
+<td>先 DDP 后 compile 会包装错层级</td>
+</tr>
+<tr class="even">
+<td><code>setup_seed(seed + epoch)</code> 在 <code>randperm</code> 前</td>
+<td>每轮的打乱顺序就不可复现</td>
+</tr>
+</tbody>
+</table>
+<section id="第-8-段里那个-train_sampler-or-indices" class="level3">
+<h3>3.1 第 8 段里那个 <code>train_sampler or indices</code></h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>batch_sampler <span class="op">=</span> SkipBatchSampler(train_sampler <span class="kw">or</span> indices, args.batch_size, skip)</span></code></pre></div>
+<ul>
+<li>多卡：<code>train_sampler</code> 是 <code>DistributedSampler</code>，负责把数据切给各卡；</li>
+<li>单卡：<code>indices</code> 是 <code>randperm</code> 的结果，自己打乱。</li>
+</ul>
+<p><strong>两者二选一</strong>，都交给 <code>SkipBatchSampler</code> 再切成 batch。这是全脚本最巧的一处「单卡/多卡统一」。</p>
+<hr />
+</section>
+</section>
+<section id="train_epoch-逐行" class="level2">
+<h2>4. <code>train_epoch</code> 逐行</h2>
+<section id="学习率每步手写进-param_group" class="level3">
+<h3>4.1 学习率：每步手写进 param_group</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>lr <span class="op">=</span> get_lr(epoch <span class="op">*</span> iters <span class="op">+</span> step, args.epochs <span class="op">*</span> iters, args.learning_rate, args.warmup_ratio)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> param_group <span class="kw">in</span> optimizer.param_groups:</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    param_group[<span class="st">&#39;lr&#39;</span>] <span class="op">=</span> lr</span></code></pre></div>
+<p><strong>为什么不用 <code>torch.optim.lr_scheduler</code></strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>方案</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>scheduler.step()</code></td>
+<td>现成、支持多种曲线</td>
+<td>需要与优化器状态一起存取、顺序易错</td>
+</tr>
+<tr class="even">
+<td><strong>手写覆盖 <code>param_group['lr']</code></strong></td>
+<td>无状态、断点续训时天然正确</td>
+<td>需要自己实现曲线</td>
+</tr>
+</tbody>
+</table>
+<p>断点续训时，手写方案只要知道「全局第几步」就能算出 lr，<strong>不需要保存 scheduler 状态</strong>。 代价是曲线只有一种实现（见 <code>trainer_utils.get_lr</code>）。</p>
+</section>
+<section id="前向与损失除以累积步数" class="level3">
+<h3>4.2 前向与损失：除以累积步数</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> autocast_ctx:</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> model(input_ids, labels<span class="op">=</span>labels)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> res.loss <span class="op">+</span> res.aux_loss      <span class="co"># MoE 的负载均衡损失；Dense 时为 0</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> loss <span class="op">/</span> args.accumulation_steps</span></code></pre></div>
+<p><strong>为什么要除</strong>：梯度会累积，不除等于把学习率放大 8 倍。</p>
+<p><strong>为什么要把 <code>aux_loss</code> 加上</strong>：MoE 的路由均衡损失必须参与反向，否则路由会坍缩。 源码里 <code>MiniMindModel</code> 对 Dense 返回 0 维零张量，所以这行对两种架构都成立。</p>
+</section>
+<section id="反向与更新五个动作的顺序不能乱" class="level3">
+<h3>4.3 反向与更新：五个动作的顺序不能乱</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>scaler.scale(loss).backward()</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> step <span class="op">%</span> args.accumulation_steps <span class="op">==</span> <span class="dv">0</span> <span class="kw">or</span> step <span class="op">==</span> iters:</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>    scaler.unscale_(optimizer)          <span class="co"># ① 先把梯度除以 scale</span></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)   <span class="co"># ② 再裁剪</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    scaler.step(optimizer)              <span class="co"># ③ 内部检查 inf/nan 后才真正更新</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>    scaler.update()                     <span class="co"># ④ 调整 scale 系数</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)  <span class="co"># ⑤ 清梯度</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>步骤</th>
+<th>为什么必须在这个位置</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>unscale_</code> 必须在 clip 前</td>
+<td>否则裁的是「被放大的梯度」，阈值失效</td>
+</tr>
+<tr class="even">
+<td><code>scaler.step</code> 而不是 <code>optimizer.step</code></td>
+<td>scale 太大产生 inf 时跳过该步，避免污染权重</td>
+</tr>
+<tr class="odd">
+<td><code>update</code> 在 <code>step</code> 后</td>
+<td>根据是否溢出调整下一次的 scale</td>
+</tr>
+<tr class="even">
+<td><code>zero_grad</code> 在最后</td>
+<td>清得太早会把累积的梯度也清掉</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>step % accumulation_steps == 0 or step == iters</code></strong>：正常情况下每累积 8 步更新一次； <code>or step == iters</code> 保证<strong>最后不足 8 步的部分也会被应用</strong>，否则尾部梯度白算。 （<code>iters</code> 传入的是 <code>len(loader) + skip</code>，所以带续训时也成立。）</p>
+<p><strong>一个续训细节</strong>：<code>enumerate(loader, start=start_step + 1)</code> 让 step 从断点继续， 所以 <code>step % 8</code> 的相位也延续——第一次更新可能发生在恢复后的第 3 个微批， 这不影响正确性（梯度从零开始累积）。</p>
+</section>
+<section id="日志三个数字的拆解" class="level3">
+<h3>4.4 日志：三个数字的拆解</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>current_loss <span class="op">=</span> loss.item() <span class="op">*</span> args.accumulation_steps</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>current_aux_loss <span class="op">=</span> res.aux_loss.item()</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>current_logits_loss <span class="op">=</span> current_loss <span class="op">-</span> current_aux_loss</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>字段</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>loss</code></td>
+<td>总损失 = 语言模型损失 + 均衡损失</td>
+</tr>
+<tr class="even">
+<td><code>logits_loss</code></td>
+<td>纯语言模型损失（能直接和 ln(vocab) 比较）</td>
+</tr>
+<tr class="odd">
+<td><code>aux_loss</code></td>
+<td>MoE 路由均衡损失（Dense 恒为 0）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么要乘回来</strong>：<code>loss</code> 在前面被除以累积步数了，<code>loss.item()</code> 拿到的是「微型损失」， 乘回去才是这一批的真实值。</p>
+<p><strong>ETA 公式</strong>：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>eta_min <span class="op">=</span> spend_time <span class="op">/</span> <span class="bu">max</span>(step <span class="op">-</span> start_step, <span class="dv">1</span>) <span class="op">*</span> (iters <span class="op">-</span> step) <span class="op">//</span> <span class="dv">60</span></span></code></pre></div>
+<p>用「已用时间 / 已走步数」估每步耗时，再乘剩余步数。冷启动阶段前几步会偏慢，所以界面上 第一个 ETA 往往偏大。</p>
+</section>
+<section id="保存半精度-双文件" class="level3">
+<h3>4.5 保存：半精度 + 双文件</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>model.<span class="bu">eval</span>()</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>ckp <span class="op">=</span> <span class="ss">f&#39;</span><span class="sc">{</span>args<span class="sc">.</span>save_dir<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>args<span class="sc">.</span>save_weight<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span>lm_config<span class="sc">.</span>hidden_size<span class="sc">}{</span>moe_suffix<span class="sc">}</span><span class="ss">.pth&#39;</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>raw_model <span class="op">=</span> model.module <span class="cf">if</span> <span class="bu">isinstance</span>(model, DistributedDataParallel) <span class="cf">else</span> model</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>raw_model <span class="op">=</span> <span class="bu">getattr</span>(raw_model, <span class="st">&#39;_orig_mod&#39;</span>, raw_model)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>state_dict <span class="op">=</span> raw_model.state_dict()</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>torch.save({k: v.half().cpu() <span class="cf">for</span> k, v <span class="kw">in</span> state_dict.items()}, ckp)</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>lm_checkpoint(lm_config, weight<span class="op">=</span>args.save_weight, model<span class="op">=</span>model, optimizer<span class="op">=</span>optimizer,</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>              scaler<span class="op">=</span>scaler, epoch<span class="op">=</span>epoch, step<span class="op">=</span>step, wandb<span class="op">=</span>wandb, save_dir<span class="op">=</span><span class="st">&#39;../checkpoints&#39;</span>)</span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>model.train()</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>动作</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>脱 DDP / compile 壳</td>
+<td>否则键名带 <code>module.</code> / <code>_orig_mod.</code></td>
+</tr>
+<tr class="even">
+<td><code>.half()</code></td>
+<td>推理权重只需 fp16</td>
+</tr>
+<tr class="odd">
+<td>再存一份 resume</td>
+<td>包含优化器、scaler、epoch/step，能续训</td>
+</tr>
+<tr class="even">
+<td><code>model.eval()</code> 后 <code>model.train()</code></td>
+<td>保存期间关 dropout，保存完恢复</td>
+</tr>
+</tbody>
+</table>
+<p><strong>文件名不带 step</strong>：每 <code>save_interval</code> 步覆盖同一个文件，<strong>只保留最新一份</strong>。 这是刻意的取舍——省磁盘，代价是「想要中间某一步」拿不到。</p>
+</section>
+<section id="最后两行-del" class="level3">
+<h3>4.6 最后两行 <code>del</code></h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">del</span> input_ids, labels, res, loss</span></code></pre></div>
+<p><strong>作用</strong>：及时释放这批张量的引用，让显存尽早回收。 注意它<strong>不会立刻释放计算图</strong>——<code>res</code> 里还挂着图，但循环下一轮重新赋值后引用归零， <code>del</code> 只是把「这一轮结束」提前了一点。在 4GB 卡上这个习惯有意义。</p>
+<hr />
+</section>
+</section>
+<section id="数据与损失是怎么配合的" class="level2">
+<h2>5. 数据与损失是怎么配合的</h2>
+<section id="pretraindataset-做了什么" class="level3">
+<h3>5.1 <code>PretrainDataset</code> 做了什么</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> tokenizer(text, add_special_tokens<span class="op">=</span><span class="va">False</span>, max_length<span class="op">=</span>max_length <span class="op">-</span> <span class="dv">2</span>, truncation<span class="op">=</span><span class="va">True</span>).input_ids</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> [BOS] <span class="op">+</span> tokens <span class="op">+</span> [EOS]</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>input_ids <span class="op">=</span> tokens <span class="op">+</span> [PAD] <span class="op">*</span> (max_length <span class="op">-</span> <span class="bu">len</span>(tokens))</span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> input_ids.clone()</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>labels[input_ids <span class="op">==</span> PAD] <span class="op">=</span> <span class="op">-</span><span class="dv">100</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>动作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>max_length - 2</code></td>
+<td>给 BOS/EOS 留位</td>
+</tr>
+<tr class="even">
+<td>加 BOS/EOS</td>
+<td>模型要学会「何时开始、何时结束」</td>
+</tr>
+<tr class="odd">
+<td><code>labels = input_ids</code></td>
+<td>预训练是<strong>自监督</strong>：整段都是监督信号</td>
+</tr>
+<tr class="even">
+<td>pad → <code>-100</code></td>
+<td>不学「预测 padding」</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="模型内部的错位" class="level3">
+<h3>5.2 模型内部的错位</h3>
+<p><code>MiniMindForCausalLM.forward</code> 里：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> F.cross_entropy(logits[..., :<span class="op">-</span><span class="dv">1</span>, :].view(<span class="op">-</span><span class="dv">1</span>, V), labels[..., <span class="dv">1</span>:].view(<span class="op">-</span><span class="dv">1</span>), ignore_index<span class="op">=-</span><span class="dv">100</span>)</span></code></pre></div>
+<p><strong>数据不动，模型错位</strong>：位置 0 的预测对位置 1 的标签，依此类推。 所以数据集里 <code>labels</code> 与 <code>input_ids</code> 完全相同，不需要手动移位。</p>
+</section>
+<section id="为什么要看-logits_loss-而不是总-loss" class="level3">
+<h3>5.3 为什么要看 <code>logits_loss</code> 而不是总 loss</h3>
+<p>随机初始化时，语言模型损失的期望值是 <code>ln(vocab_size) = ln(6400) ≈ 8.76</code>。 训练开始后这个数应该<strong>从 8.76 往下走</strong>；如果它不降，说明学习率、数据或代码有问题。 <code>aux_loss</code> 只对 MoE 有意义，混在一起看会干扰判断。</p>
+<hr />
+</section>
+</section>
+<section id="断点续训三个组件配合" class="level2">
+<h2>6. 断点续训：三个组件配合</h2>
+<table>
+<thead>
+<tr class="header">
+<th>组件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lm_checkpoint</code> 存的 <code>step</code></td>
+<td>知道「训到哪了」</td>
+</tr>
+<tr class="even">
+<td><code>SkipBatchSampler</code></td>
+<td>跳过前面已训的 batch</td>
+</tr>
+<tr class="odd">
+<td><code>setup_seed(seed + epoch)</code> + <code>randperm</code></td>
+<td>保证同一 epoch 的数据顺序可复现</td>
+</tr>
+</tbody>
+</table>
+<p><strong>换卡数时的近似</strong>：<code>step × saved_world / current_world</code>，再跳过对应批次。 数据顺序并非严格等价，但比从头再来好得多。</p>
+<p><strong>注意</strong>：<code>skip</code> 只在<strong>恢复时的那一个 epoch</strong> 生效：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>skip <span class="op">=</span> start_step <span class="cf">if</span> (epoch <span class="op">==</span> start_epoch <span class="kw">and</span> start_step <span class="op">&gt;</span> <span class="dv">0</span>) <span class="cf">else</span> <span class="dv">0</span></span></code></pre></div>
+<p>后续 epoch 从头开始，这是正确的——每个 epoch 本来就该看全量数据。</p>
+<hr />
+</section>
+<section id="本机实测4gb-卡到底能不能跑" class="level2">
+<h2>7. 本机实测：4GB 卡到底能不能跑</h2>
+<section id="初始-loss-校验" class="level3">
+<h3>7.1 初始 loss 校验</h3>
+<p>用随机权重 + 随机 token 单次前向：</p>
+<pre><code>loss = 8.873   (ln(6400) = 8.764)</code></pre>
+<p>符合「均匀猜」的预期。这是判断预训练是否真的在学的第一把尺子。</p>
+</section>
+<section id="每步耗时与显存同配置模拟seq340lr5e-4" class="level3">
+<h3>7.2 每步耗时与显存（同配置模拟，seq=340，lr=5e-4）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>batch</th>
+<th>精度</th>
+<th>ms/step</th>
+<th>峰值显存</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>4</td>
+<td>fp16</td>
+<td>1814</td>
+<td>1559 MB</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>fp32</td>
+<td><strong>395</strong></td>
+<td>1766 MB</td>
+</tr>
+<tr class="odd">
+<td>8</td>
+<td>fp16</td>
+<td>3564</td>
+<td>2202 MB</td>
+</tr>
+<tr class="even">
+<td>8</td>
+<td>fp32</td>
+<td><strong>719</strong></td>
+<td>2735 MB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>三个结论</strong>：</p>
+<ol type="1">
+<li><p><strong><code>resolve_dtype</code> 会把你的卡降成 fp16，而 fp16 在这里比 fp32 慢 4.6 倍</strong>—— 和 PyTorch 教材里测到的「Turing 卡 fp16 无加速」完全一致。想快就得手动改一行：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># train_pretrain.py:115 附近</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>dtype <span class="op">=</span> torch.bfloat16 <span class="cf">if</span> args.dtype <span class="op">==</span> <span class="st">&quot;bfloat16&quot;</span> <span class="cf">else</span> torch.float16</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co"># 改成显式 fp32 分支，或者：</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 直接用 fp32 时把 autocast_ctx 设为 nullcontext()</span></span></code></pre></div></li>
+<li><p><strong>batch 8 fp32 已占 2.7 GB</strong>，batch 32（脚本默认）会突破 4GB 直接 OOM。 本地必须改成：</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> train_pretrain.py <span class="at">--batch_size</span> 4 <span class="at">--accumulation_steps</span> 64 <span class="at">--max_seq_len</span> 256</span></code></pre></div>
+<p>把「32×8=256」换成「4×64=256」，等效 batch 不变，显存能塞下。</p></li>
+<li><p><strong>速度换算</strong>：README 说单卡 3090 跑完 pretrain 约 1.21 小时。 按每步耗时与等效步数折算，本地是<strong>「一天量级」</strong>——挂一夜能跑完， 但不要指望上午开始下午出结果。</p></li>
+</ol>
+</section>
+<section id="一个容易误读的现象" class="level3">
+<h3>7.3 一个容易误读的现象</h3>
+<p>如果拿<strong>固定的几条数据</strong>连跑几十步，loss 会掉到 0.0x 甚至 0.007。 <strong>这不是训练成功</strong>，是模型把这几个样本背下来了（64M 参数背 4 条 340 token 的序列绰绰有余）。 真实训练中数据不断变化，loss 会稳定在「与数据难度匹配」的水平。</p>
+<hr />
+</section>
+</section>
+<section id="坑与注意事项" class="level2">
+<h2>8. 坑与注意事项</h2>
+<table>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>说明</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>默认 batch 32 在 4GB 上 OOM</td>
+<td>按 3090 定的</td>
+<td>降到 4~8，用累积补</td>
+</tr>
+<tr class="even">
+<td>fp16 在 Turing 上更慢</td>
+<td><code>resolve_dtype</code> 自动降级</td>
+<td>手动改 fp32 或忍受</td>
+</tr>
+<tr class="odd">
+<td><code>use_compile=1</code> 在 Windows 失败</td>
+<td>无 Triton、缺 MSVC</td>
+<td>保持 0</td>
+</tr>
+<tr class="even">
+<td>保存文件名固定</td>
+<td>只留最新一份</td>
+<td>需要中间权重就自己改文件名</td>
+</tr>
+<tr class="odd">
+<td>日志的 <code>loss</code> 是除过的</td>
+<td>乘回 <code>accumulation_steps</code> 才是真值</td>
+<td>已处理</td>
+</tr>
+<tr class="even">
+<td>最后不足 accum 的批</td>
+<td><code>or step == iters</code> 强制更新</td>
+<td>已处理</td>
+</tr>
+<tr class="odd">
+<td>续训只跳过首个 epoch</td>
+<td>设计如此</td>
+<td>不需要改</td>
+</tr>
+<tr class="even">
+<td><code>import datasets</code> 必须在 torch 前</td>
+<td>Windows DLL 冲突</td>
+<td>别调换顺序</td>
+</tr>
+<tr class="odd">
+<td>权重和模型结构必须匹配</td>
+<td><code>strict=False</code> 也会因形状报错</td>
+<td>用同一 <code>hidden_size</code>/<code>use_moe</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="它和-train_full_sft.py-差多少" class="level2">
+<h2>9. 它和 <code>train_full_sft.py</code> 差多少</h2>
+<p>把两个文件 diff 一下，<strong>只差这些</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>pretrain</th>
+<th>full_sft</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dataset</td>
+<td><code>PretrainDataset</code>（整段算 loss）</td>
+<td><code>SFTDataset</code>（只算回答）</td>
+</tr>
+<tr class="even">
+<td>学习率</td>
+<td>5e-4</td>
+<td><strong>1e-5</strong></td>
+</tr>
+<tr class="odd">
+<td>序列长度</td>
+<td>340</td>
+<td>768</td>
+</tr>
+<tr class="even">
+<td>batch</td>
+<td>32</td>
+<td>16</td>
+</tr>
+<tr class="odd">
+<td>累积步数</td>
+<td>8</td>
+<td>1</td>
+</tr>
+<tr class="even">
+<td>初始权重</td>
+<td><code>none</code>（随机）</td>
+<td><code>pretrain</code></td>
+</tr>
+<tr class="odd">
+<td>数据</td>
+<td><code>pretrain_t2t_mini.jsonl</code></td>
+<td><code>sft_t2t_mini.jsonl</code></td>
+</tr>
+<tr class="even">
+<td>保存前缀</td>
+<td><code>pretrain</code></td>
+<td><code>full_sft</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>循环体、精度处理、保存逻辑、分布式逻辑一行没变。</strong></p>
+<p>这就是为什么说「看懂 pretrain，后面都是加法」—— SFT 的本质是「换一个会屏蔽提问的 Dataset + 把学习率降两个数量级」。</p>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>10. 自测题</h2>
+<ol type="1">
+<li><code>__package__ = "trainer"</code> 和 <code>sys.path.append</code> 各自解决什么问题？</li>
+<li><code>import datasets</code> 为什么必须放在 <code>import torch</code> 之前？</li>
+<li>为什么先初始化分布式再设随机种子？</li>
+<li><code>setup_seed(args.seed + epoch)</code> 放在 <code>randperm</code> 前的作用？</li>
+<li><code>train_sampler or indices</code> 这行在单卡和多卡下分别是哪个分支？</li>
+<li><code>loss / accumulation_steps</code> 为什么不能省？</li>
+<li><code>unscale_</code> 为什么必须在 <code>clip_grad_norm_</code> 之前？</li>
+<li><code>or step == iters</code> 解决了什么边界问题？</li>
+<li>日志里为什么要乘回 <code>accumulation_steps</code>？</li>
+<li>保存时为什么要脱 <code>module.</code> / <code>_orig_mod.</code> 前缀？</li>
+<li>随机权重时 loss 的期望值是多少？为什么？</li>
+<li>固定数据训 20 步 loss 掉到 0.007 说明了什么？</li>
+<li>在你的 4GB 卡上，脚本默认参数会遇到什么问题？怎么改？</li>
+<li>pretrain 和 SFT 的循环体差在哪？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>前者让脚本以包内模块运行；后者让项目根目录可被导入。</li>
+<li>Windows 下 pyarrow 与 torch 的 DLL 加载顺序冲突。</li>
+<li>分布式初始化会设置各卡的环境，种子要按 rank 区分。</li>
+<li>保证每个 epoch 的打乱顺序可复现。</li>
+<li>多卡走 <code>DistributedSampler</code>，单卡走 <code>randperm</code> 列表。</li>
+<li>梯度会累积，不除等于学习率放大 N 倍。</li>
+<li>裁剪必须作用在真实梯度上，否则阈值失效。</li>
+<li>最后不足一个累积周期的梯度也能被应用。</li>
+<li>日志值在前面被除过。</li>
+<li>否则加载时键名对不上。</li>
+<li><code>ln(6400) ≈ 8.76</code>，因为输出近似均匀分布。</li>
+<li>过拟合了几条固定样本，不代表训练有效。</li>
+<li>batch 32 OOM；改小 batch + 增大累积；fp16 反而慢，可改 fp32。</li>
+<li>只差 Dataset、学习率、序列长度、batch、初始权重 —— 循环体相同。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>11. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>段落</th>
+<th>关键代码</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>脚手架</td>
+<td><code>__package__</code> / <code>sys.path</code> / <code>import datasets</code></td>
+<td>让脚本能当模块跑</td>
+</tr>
+<tr class="even">
+<td>参数</td>
+<td>20 个 argparse</td>
+<td>默认值按 3090 定</td>
+</tr>
+<tr class="odd">
+<td>初始化</td>
+<td>分布式 → 配置 → 精度 → 模型 → 恢复</td>
+<td>顺序不能乱</td>
+</tr>
+<tr class="even">
+<td>训练步</td>
+<td><code>zero_grad → forward → loss/accum → backward → step</code></td>
+<td>五步循环</td>
+</tr>
+<tr class="odd">
+<td>更新</td>
+<td><code>unscale → clip → step → update → zero</code></td>
+<td>顺序不能乱</td>
+</tr>
+<tr class="even">
+<td>日志</td>
+<td><code>loss × accum</code>、拆 aux</td>
+<td>看 <code>logits_loss</code></td>
+</tr>
+<tr class="odd">
+<td>保存</td>
+<td>half 权重 + resume</td>
+<td>双文件</td>
+</tr>
+<tr class="even">
+<td>续训</td>
+<td><code>SkipBatchSampler</code> + step 换算</td>
+<td>近似恢复</td>
+</tr>
+<tr class="odd">
+<td>分布式</td>
+<td>DDP 包在 compile 之后</td>
+<td>单卡跳过</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

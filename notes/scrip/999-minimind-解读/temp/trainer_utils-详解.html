@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>trainer_utils.py 详解：训练工具函数全解</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; trainer_utils.py 详解：训练工具函数全解</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#定位它解决的是复制粘贴问题">0. 定位：它解决的是「复制粘贴」问题</a>
+<ul>
+<li class="lvl3"><a href="#谁在用哪些函数">0.1 谁在用哪些函数</a></li>
+<li class="lvl3"><a href="#个符号分四组">0.2 14 个符号，分四组</a></li>
+</ul></li>
+<li class="lvl2"><a href="#环境组">1. 环境组</a>
+<ul>
+<li class="lvl3"><a href="#is_main_process36">1.1 is_main_process()（:36）</a></li>
+<li class="lvl3"><a href="#loggercontent41">1.2 Logger(content)（:41）</a></li>
+<li class="lvl3"><a href="#setup_seedseed77">1.3 setup_seed(seed)（:77）</a></li>
+<li class="lvl3"><a href="#init_distributed_mode66">1.4 init_distributed_mode()（:66）</a></li>
+<li class="lvl3"><a href="#resolve_dtypedtype-device47">1.5 resolve_dtype(dtype, device)（:47）</a></li>
+</ul></li>
+<li class="lvl2"><a href="#调度组">2. 调度组</a>
+<ul>
+<li class="lvl3"><a href="#get_lr57学习率曲线">2.1 get_lr（:57）——学习率曲线</a></li>
+<li class="lvl3"><a href="#skipbatchsampler160断点续训的快进键">2.2 SkipBatchSampler（:160）——断点续训的「快进键」</a></li>
+<li class="lvl3"><a href="#init_model144一行搞定建模型-载权重-打印">2.3 init_model（:144）——一行搞定「建模型 + 载权重 + 打印」</a></li>
+<li class="lvl3"><a href="#get_model_params22moe-的总参数-激活参数">2.4 get_model_params（:22）——MoE 的「总参数 / 激活参数」</a></li>
+</ul></li>
+<li class="lvl2"><a href="#断点组">3. 断点组</a>
+<ul>
+<li class="lvl3"><a href="#lm_checkpoint88全文件最值得读的一段">3.1 lm_checkpoint（:88）——全文件最值得读的一段</a></li>
+</ul></li>
+<li class="lvl2"><a href="#业务组rl-与工具调用">4. 业务组：RL 与工具调用</a>
+<ul>
+<li class="lvl3"><a href="#lmforrewardmodel187">4.1 LMForRewardModel（:187）</a></li>
+<li class="lvl3"><a href="#safe_math_eval208不用-eval-的算式求值">4.2 safe_math_eval（:208）——不用 eval() 的算式求值</a></li>
+<li class="lvl3"><a href="#rep_penalty238重复度奖励项">4.3 rep_penalty（:238）——重复度奖励项</a></li>
+</ul></li>
+<li class="lvl2"><a href="#设计评价">5. 设计评价</a>
+<ul>
+<li class="lvl3"><a href="#五个值得学的做法">5.1 五个值得学的做法</a></li>
+<li class="lvl3"><a href="#五个可以改进的地方">5.2 五个可以改进的地方</a></li>
+</ul></li>
+<li class="lvl2"><a href="#自测题">6. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">7. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="trainer_utils.py-详解12-个训练脚本共用的工具箱" class="level1">
+<h1><code>trainer_utils.py</code> 详解：12 个训练脚本共用的工具箱</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/trainer_utils.py</code>（243 行） 环境：本机 conda <code>swift_env</code>（torch 2.6.0+cu124） 本文所有「实测」输出均来自本机实际调用，脚本见 <code>trainer_utils_probe.py</code>。</p>
+</blockquote>
+<hr />
+<section id="定位它解决的是复制粘贴问题" class="level2">
+<h2>0. 定位：它解决的是「复制粘贴」问题</h2>
+<p>项目里有 <strong>8 个训练脚本</strong>（pretrain / sft / lora / distillation / dpo / ppo / grpo / agent）， 它们的循环骨架几乎一样。如果不抽公共函数，每加一个算法就要复制一遍：</p>
+<ul>
+<li>日志打印</li>
+<li>学习率调度</li>
+<li>分布式初始化</li>
+<li>断点保存与恢复</li>
+<li>模型加载</li>
+</ul>
+<p><code>trainer_utils.py</code> 就是把这些「与算法无关」的部分收拢到一个文件里。 <strong>判断标准很清晰：任何和「具体训练目标」有关的东西（loss、数据、奖励）都不在这里。</strong></p>
+<section id="谁在用哪些函数" class="level3">
+<h3>0.1 谁在用哪些函数</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>使用方</th>
+<th>用到的函数</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>train_pretrain</code> / <code>train_full_sft</code> / <code>train_lora</code> / <code>train_distillation</code> / <code>train_dpo</code></td>
+<td><code>get_lr</code>、<code>Logger</code>、<code>is_main_process</code>、<code>lm_checkpoint</code>、<code>init_distributed_mode</code>、<code>setup_seed</code>、<code>init_model</code>、<code>SkipBatchSampler</code>、<code>resolve_dtype</code></td>
+</tr>
+<tr class="even">
+<td><code>train_ppo</code> / <code>train_grpo</code> / <code>train_agent</code></td>
+<td>上面全部 + <code>LMForRewardModel</code>、<code>rep_penalty</code>（agent 另有 <code>safe_math_eval</code>）</td>
+</tr>
+<tr class="odd">
+<td><code>eval_llm.py</code></td>
+<td><code>setup_seed</code>、<code>get_model_params</code></td>
+</tr>
+<tr class="even">
+<td><code>scripts/web_demo.py</code> / <code>scripts/eval_toolcall.py</code></td>
+<td><code>safe_math_eval</code>、<code>get_model_params</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="个符号分四组" class="level3">
+<h3>0.2 14 个符号，分四组</h3>
+<table>
+<thead>
+<tr class="header">
+<th>分组</th>
+<th>符号</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>环境</strong></td>
+<td><code>is_main_process</code></td>
+<td>是不是 0 号卡</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>Logger</code></td>
+<td>只在主进程打印</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>setup_seed</code></td>
+<td>固定所有随机源</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>init_distributed_mode</code></td>
+<td>读环境变量起 NCCL</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>resolve_dtype</code></td>
+<td>bf16 不支持就降级 fp16</td>
+</tr>
+<tr class="even">
+<td><strong>调度</strong></td>
+<td><code>get_lr</code></td>
+<td>warmup + 余弦（10% 地板）</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>SkipBatchSampler</code></td>
+<td>续训时跳过已训 batch</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>init_model</code></td>
+<td>建模型 + 载权重 + 打印参数量</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>get_model_params</code></td>
+<td>打印总参数 / 激活参数</td>
+</tr>
+<tr class="even">
+<td><strong>断点</strong></td>
+<td><code>lm_checkpoint</code></td>
+<td>存两份：推理权重 + 续训状态</td>
+</tr>
+<tr class="odd">
+<td><strong>业务</strong></td>
+<td><code>LMForRewardModel</code></td>
+<td>外部奖励模型封装</td>
+</tr>
+<tr class="even">
+<td></td>
+<td><code>safe_math_eval</code></td>
+<td>AST 白名单安全求值</td>
+</tr>
+<tr class="odd">
+<td></td>
+<td><code>rep_penalty</code></td>
+<td>n-gram 重复度打分</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+</section>
+<section id="环境组" class="level2">
+<h2>1. 环境组</h2>
+<section id="is_main_process36" class="level3">
+<h3>1.1 <code>is_main_process()</code>（:36）</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> is_main_process():</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="kw">not</span> dist.is_initialized() <span class="kw">or</span> dist.get_rank() <span class="op">==</span> <span class="dv">0</span></span></code></pre></div>
+<p><strong>语义</strong>：单卡训练恒为 True；多卡时只有 rank 0 为 True。</p>
+<p><strong>为什么重要</strong>：多卡下每个进程都会执行同一份代码，如果都打印/都保存， 日志会重复 N 遍、文件会互相覆盖。所以凡是「只该做一次」的事（打印、存盘、上传） 都必须过这一层判断。</p>
+<p><strong>坑</strong>：它没有缓存 <code>dist.get_rank()</code>，高频调用（比如每个 step 打日志）会有微小开销； 在主循环里没问题，在每 token 循环里就有影响。</p>
+</section>
+<section id="loggercontent41" class="level3">
+<h3>1.2 <code>Logger(content)</code>（:41）</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> Logger(content):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> is_main_process():</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(content)</span></code></pre></div>
+<p><strong>它做了什么</strong>：只是「加了一层主进程判断的 print」。 <strong>它没做什么</strong>：没有时间戳、没有文件落盘、没有等级、没有结构化字段。</p>
+<p><strong>为什么可以这么简单</strong>：训练日志真正的归宿是 swanlab/wandb（脚本里单独处理）， 终端打印只是给人看的副产物。</p>
+</section>
+<section id="setup_seedseed77" class="level3">
+<h3>1.3 <code>setup_seed(seed)</code>（:77）</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>random.seed(seed)<span class="op">;</span> np.random.seed(seed)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>torch.manual_seed(seed)<span class="op">;</span> torch.cuda.manual_seed(seed)<span class="op">;</span> torch.cuda.manual_seed_all(seed)</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>torch.backends.cudnn.deterministic <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>torch.backends.cudnn.benchmark <span class="op">=</span> <span class="va">False</span></span></code></pre></div>
+<p><strong>五个随机源全部固定</strong>：Python 的 random、NumPy、CPU 的 torch、当前 GPU、所有 GPU。</p>
+<p><strong>两个 cudnn 开关的含义</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>开关</th>
+<th>值</th>
+<th>代价</th>
+<th>收益</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>deterministic=True</code></td>
+<td>强制确定性算法</td>
+<td>部分卷积会变慢</td>
+<td>可复现</td>
+</tr>
+<tr class="even">
+<td><code>benchmark=False</code></td>
+<td>不做算法自动寻优</td>
+<td>慢一点</td>
+<td>同上</td>
+</tr>
+</tbody>
+</table>
+<p><strong>训练脚本里的实际用法</strong>（两处）：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>setup_seed(args.seed <span class="op">+</span> rank)     <span class="co"># 进程级：每张卡不同</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>setup_seed(args.seed <span class="op">+</span> epoch)    <span class="co"># 每个 epoch：保证各轮 shuffle 顺序可复现</span></span></code></pre></div>
+</section>
+<section id="init_distributed_mode66" class="level3">
+<h3>1.4 <code>init_distributed_mode()</code>（:66）</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> init_distributed_mode():</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">int</span>(os.environ.get(<span class="st">&quot;RANK&quot;</span>, <span class="op">-</span><span class="dv">1</span>)) <span class="op">==</span> <span class="op">-</span><span class="dv">1</span>:</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="dv">0</span>                    <span class="co"># 不是 torchrun 启动的 → 单卡</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    dist.init_process_group(backend<span class="op">=</span><span class="st">&quot;nccl&quot;</span>)</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>    local_rank <span class="op">=</span> <span class="bu">int</span>(os.environ[<span class="st">&quot;LOCAL_RANK&quot;</span>])</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>    torch.cuda.set_device(local_rank)</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> local_rank</span></code></pre></div>
+<p><strong>它靠什么判断该不该起分布式</strong>：<code>RANK</code> 环境变量。<code>torchrun</code> 会自动注入 <code>RANK / LOCAL_RANK / WORLD_SIZE</code>，直接 <code>python train.py</code> 则没有——<strong>一个变量区分两种启动方式</strong>。</p>
+<table>
+<thead>
+<tr class="header">
+<th>环境变量</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>RANK</code></td>
+<td>全局进程序号</td>
+</tr>
+<tr class="even">
+<td><code>LOCAL_RANK</code></td>
+<td>本机内的卡号（用于 <code>set_device</code>）</td>
+</tr>
+<tr class="odd">
+<td><code>WORLD_SIZE</code></td>
+<td>总进程数（本函数没读，DDP 自己读）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>三个局限</strong>：</p>
+<ol type="1">
+<li><code>backend="nccl"</code> 写死——<strong>Windows 没有 NCCL，这个方法在 Windows 上必然失败</strong>（这也是为什么你的机器只能用单卡）。</li>
+<li>没有 <code>timeout</code>，默认 30 分钟，长任务卡住时很难排查。</li>
+<li>没有打印 rank 信息，出问题只能靠 <code>torchrun</code> 的日志。</li>
+</ol>
+</section>
+<section id="resolve_dtypedtype-device47" class="level3">
+<h3>1.5 <code>resolve_dtype(dtype, device)</code>（:47）</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> resolve_dtype(dtype, device):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> dtype <span class="op">!=</span> <span class="st">&quot;bfloat16&quot;</span> <span class="kw">or</span> <span class="kw">not</span> torch.cuda.is_available() <span class="kw">or</span> torch.device(device).<span class="bu">type</span> <span class="op">!=</span> <span class="st">&quot;cuda&quot;</span>:</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> dtype</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> torch.cuda.is_bf16_supported(including_emulation<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> dtype</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>    Logger(<span class="ss">f&quot;</span><span class="sc">{</span>torch<span class="sc">.</span>cuda<span class="sc">.</span>get_device_name(device)<span class="sc">}</span><span class="ss"> 不原生支持 bfloat16，已回退为 float16&quot;</span>)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="st">&quot;float16&quot;</span></span></code></pre></div>
+<p><strong>逻辑拆解</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>输入</th>
+<th>结果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>不是 bf16</td>
+<td>原样返回（fp16/fp32 不做检查）</td>
+</tr>
+<tr class="even">
+<td>没有 CUDA / 不是 GPU</td>
+<td>原样返回（CPU 上 bf16 其实能跑）</td>
+</tr>
+<tr class="odd">
+<td>卡原生支持 bf16</td>
+<td>原样返回</td>
+</tr>
+<tr class="even">
+<td>卡不支持</td>
+<td><strong>降级 fp16</strong> 并打印警告</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>including_emulation=False</code> 是关键</strong>：torch 在较老的卡上可以用软件模拟 bf16， 但速度极差。传 False 表示「只认硬件原生支持」，避免「能跑但慢十倍」。</p>
+<p><strong>本机实测</strong>：</p>
+<pre><code>NVIDIA GeForce GTX 1650 不原生支持 bfloat16，已回退为 float16
+  bfloat16 -&gt; float16
+  float16  -&gt; float16</code></pre>
+<p><strong>这对你的意义</strong>：MiniMind 在 1650 上拿到了 fp16 训练路径，而我们在 PyTorch 教材里 实测过这块卡 fp16 autocast 比 fp32 慢约 5 倍——<strong>能跑，但别指望速度</strong>。</p>
+<hr />
+</section>
+</section>
+<section id="调度组" class="level2">
+<h2>2. 调度组</h2>
+<section id="get_lr57学习率曲线" class="level3">
+<h3>2.1 <code>get_lr</code>（:57）——学习率曲线</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_lr(current_step, total_steps, lr, warmup_ratio<span class="op">=</span><span class="fl">0.0</span>):</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    warmup <span class="op">=</span> <span class="bu">max</span>(<span class="dv">1</span>, <span class="bu">int</span>(warmup_ratio <span class="op">*</span> total_steps)) <span class="cf">if</span> warmup_ratio <span class="op">&gt;</span> <span class="dv">0</span> <span class="cf">else</span> <span class="dv">0</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> current_step <span class="op">&lt;</span> warmup:</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> lr <span class="op">*</span> (current_step <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> warmup</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    angle <span class="op">=</span> math.pi <span class="op">*</span> (current_step <span class="op">-</span> warmup) <span class="op">/</span> <span class="bu">max</span>(<span class="dv">1</span>, total_steps <span class="op">-</span> warmup)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> lr <span class="op">*</span> (<span class="fl">0.1</span> <span class="op">+</span> <span class="fl">0.45</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">+</span> math.cos(angle)))</span></code></pre></div>
+<p><strong>两段式</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>公式</th>
+<th>端点值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>warmup（前 <code>w</code> 步）</td>
+<td><code>lr × (step+1)/w</code></td>
+<td>起点 <code>lr/w</code>，终点 <code>lr</code></td>
+</tr>
+<tr class="even">
+<td>余弦下降</td>
+<td><code>lr × (0.1 + 0.45×(1+cos θ))</code></td>
+<td>θ=0 → <code>lr</code>；θ=π → <code>0.1·lr</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意两个细节</strong>：</p>
+<ol type="1">
+<li><strong>warmup 起点不是 0，而是 <code>lr/w</code></strong>（因为分子是 <code>step+1</code>）。warmup 100 步、lr=1e-3 时， 第一步就是 1e-5，而不是 0。</li>
+<li><strong>余弦段用的是「剩余步数」</strong>（<code>total - warmup</code>），所以开启 warmup 后曲线整体左移。</li>
+</ol>
+<p><strong>本机实测（lr=1e-3, total=1000）</strong>：</p>
+<p><em>不 warmup</em>：</p>
+<pre><code>step    0: 0.001000
+step  250: 0.000868
+step  500: 0.000550
+step  750: 0.000232
+step 1000: 0.000100      ← 10% 地板</code></pre>
+<p><em>warmup_ratio=0.1（前 100 步线性升）</em>：</p>
+<pre><code>step    0: 0.000010      ← lr/100，不是 0
+step   50: 0.000510
+step   99: 0.001000
+step  500: 0.000628      ← 注意与不 warmup 时的 0.000550 不同
+step 1000: 0.000100</code></pre>
+<p><strong>为什么保留 10% 地板</strong>：大模型训练后期如果 lr 趋近 0，梯度噪声会主导更新， 模型在局部乱跳。留 10% 相当于保留一点「探索」，也让最后阶段的 batch 仍有意义。</p>
+<p><strong>坑</strong>：</p>
+<ul>
+<li>调用方传的是 <code>epoch * iters + step</code>，而 <code>step</code> 从 1 开始（<code>enumerate(loader, start=1)</code>）， 所以实际第一个 step 传进来的是 1，导致 warmup 进度<strong>偏快一步</strong>。无伤大雅，但做精确复现时要知道。</li>
+<li><code>warmup_ratio=0</code> 时 <code>warmup=0</code>，<code>current_step &lt; 0</code> 永远为假，直接走余弦。</li>
+</ul>
+</section>
+<section id="skipbatchsampler160断点续训的快进键" class="level3">
+<h3>2.2 <code>SkipBatchSampler</code>（:160）——断点续训的「快进键」</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> SkipBatchSampler(Sampler):</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, sampler, batch_size, skip_batches<span class="op">=</span><span class="dv">0</span>): ...</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__iter__</span>(<span class="va">self</span>):</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>        batch <span class="op">=</span> []</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> idx <span class="kw">in</span> <span class="va">self</span>.sampler:</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>            batch.append(idx)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="bu">len</span>(batch) <span class="op">==</span> <span class="va">self</span>.batch_size:</span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> skipped <span class="op">&lt;</span> <span class="va">self</span>.skip_batches: skipped <span class="op">+=</span> <span class="dv">1</span><span class="op">;</span> batch <span class="op">=</span> []<span class="op">;</span> <span class="cf">continue</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">yield</span> batch<span class="op">;</span> batch <span class="op">=</span> []</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> batch <span class="kw">and</span> skipped <span class="op">&gt;=</span> <span class="va">self</span>.skip_batches: <span class="cf">yield</span> batch</span></code></pre></div>
+<p><strong>它解决的场景</strong>：从第 500 步续训时，如果从头再跑一遍数据，既浪费时间又打乱 「同一步看到同一批数据」的复现性。所以<strong>直接跳过前面的批次</strong>。</p>
+<p><strong>它接受的输入有两种</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>输入</th>
+<th>场景</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>DistributedSampler</code></td>
+<td>多卡（每个 rank 只拿自己那份）</td>
+</tr>
+<tr class="even">
+<td><code>list</code>（<code>randperm</code> 的结果）</td>
+<td>单卡（自己打乱）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>本机实测</strong>：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>s <span class="op">=</span> SkipBatchSampler(<span class="bu">list</span>(<span class="bu">range</span>(<span class="dv">10</span>)), batch_size<span class="op">=</span><span class="dv">3</span>, skip_batches<span class="op">=</span><span class="dv">2</span>)</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="bu">len</span>(s) <span class="op">==</span> <span class="dv">2</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="bu">list</span>(s) <span class="op">==</span> [[<span class="dv">6</span>, <span class="dv">7</span>, <span class="dv">8</span>], [<span class="dv">9</span>]]</span></code></pre></div>
+<p>前两个 batch（<code>[0,1,2]</code>、<code>[3,4,5]</code>）被吃掉，从第 6 个样本开始。</p>
+<p><strong>坑</strong>：</p>
+<ul>
+<li>只按 batch 数跳过，最后一个不完整 batch 也计入。</li>
+<li>如果换卡数，<code>lm_checkpoint</code> 会把 step 换算成新卡数下的步数，再喂给这里—— 两者配合才成立（见 3.1）。</li>
+</ul>
+</section>
+<section id="init_model144一行搞定建模型-载权重-打印" class="level3">
+<h3>2.3 <code>init_model</code>（:144）——一行搞定「建模型 + 载权重 + 打印」</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> init_model(lm_config, from_weight<span class="op">=</span><span class="st">&#39;pretrain&#39;</span>, tokenizer_path<span class="op">=</span><span class="st">&#39;../model&#39;</span>,</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>               save_dir<span class="op">=</span><span class="st">&#39;../out&#39;</span>, device<span class="op">=</span><span class="st">&#39;cuda&#39;</span>):</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>    tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(tokenizer_path)</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>    model <span class="op">=</span> MiniMindForCausalLM(lm_config)</span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> from_weight <span class="op">!=</span> <span class="st">&#39;none&#39;</span>:</span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>        weight_path <span class="op">=</span> <span class="ss">f&#39;</span><span class="sc">{</span>save_dir<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>from_weight<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span>lm_config<span class="sc">.</span>hidden_size<span class="sc">}{</span>moe_suffix<span class="sc">}</span><span class="ss">.pth&#39;</span></span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>        weights <span class="op">=</span> torch.load(weight_path, map_location<span class="op">=</span>device)</span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>        model.load_state_dict(weights, strict<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>    get_model_params(model, lm_config)</span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>    Logger(<span class="ss">f&#39;Trainable Params: ...&#39;</span>)</span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> model.to(device), tokenizer</span></code></pre></div>
+<p><strong>四件事</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>步骤</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>载分词器</td>
+<td>固定从 <code>../model</code> 读（<strong>依赖「在 trainer/ 目录下运行」</strong>）</td>
+</tr>
+<tr class="even">
+<td>建模型</td>
+<td>由 config 决定结构</td>
+</tr>
+<tr class="odd">
+<td>载权重</td>
+<td>文件名由 <code>from_weight + hidden_size + _moe</code> 拼成</td>
+</tr>
+<tr class="even">
+<td>打印</td>
+<td>总参数 + 可训练参数</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>strict=False</code> 的取舍</strong>：允许键名不完全匹配（比如 Dense 权重载入时忽略 MoE 键）。 但<strong>形状不匹配仍会报错</strong>，所以拿 512 的权重加载到 768 模型上不会被静默接受。</p>
+<p><strong>坑</strong>：所有路径都是相对路径，换目录运行就会 <code>FileNotFoundError</code>。 README 特意强调「所有训练脚本均 <code>cd ./trainer</code> 执行」，就是为这个。</p>
+</section>
+<section id="get_model_params22moe-的总参数-激活参数" class="level3">
+<h3>2.4 <code>get_model_params</code>（:22）——MoE 的「总参数 / 激活参数」</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>total <span class="op">=</span> <span class="bu">sum</span>(p.numel()) <span class="op">/</span> <span class="fl">1e6</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>n_routed <span class="op">=</span> <span class="bu">getattr</span>(config, <span class="st">&#39;n_routed_experts&#39;</span>, <span class="bu">getattr</span>(config, <span class="st">&#39;num_experts&#39;</span>, <span class="dv">0</span>))</span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>n_active <span class="op">=</span> <span class="bu">getattr</span>(config, <span class="st">&#39;num_experts_per_tok&#39;</span>, <span class="dv">0</span>)</span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>n_shared <span class="op">=</span> <span class="bu">getattr</span>(config, <span class="st">&#39;n_shared_experts&#39;</span>, <span class="dv">0</span>)</span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>expert <span class="op">=</span> 名称含 <span class="st">&#39;mlp.experts.0.&#39;</span> 的参数 <span class="op">/</span> <span class="fl">1e6</span>      <span class="co"># 单个专家</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>shared_expert <span class="op">=</span> 名称含 <span class="st">&#39;mlp.shared_experts.0.&#39;</span> 的参数 <span class="op">/</span> <span class="fl">1e6</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>base <span class="op">=</span> total <span class="op">-</span> expert<span class="op">*</span>n_routed <span class="op">-</span> shared_expert<span class="op">*</span>n_shared</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>active <span class="op">=</span> base <span class="op">+</span> expert<span class="op">*</span>n_active <span class="op">+</span> shared_expert<span class="op">*</span>n_shared</span></code></pre></div>
+<p><strong>思路</strong>：从总参数里<strong>扣掉所有专家</strong>，得到「底座」（embedding + 注意力 + 路由）； 再加回「实际会激活的专家」数，就是每 token 的计算量。</p>
+<p><strong>本机实测</strong>：</p>
+<pre><code>Model Params: 63.91M              ← Dense
+Model Params: 198.42M-A63.94M     ← MoE：总 198M，激活 64M</code></pre>
+<p><strong>这个数字和 README 的「198M-A64M」对得上</strong>，也解释了 MoE 的卖点： <strong>参数量 3 倍，算力几乎不变</strong>。</p>
+<p><strong>两个坑</strong>：</p>
+<ol type="1">
+<li><strong>硬编码了模块名</strong> <code>'mlp.experts.0.'</code>。重命名专家层后，这里会静默算成 0， 打印出错误的数字而不报错。</li>
+<li><code>getattr</code> 的默认值链（<code>n_routed_experts</code> → <code>num_experts</code> → 0）是为了兼容不同版本配置； MiniMind 的 config 里两者都叫 <code>num_experts</code>，Dense 模式下它是 4 但<strong>没有实际专家参数</strong>， 所以 <code>expert=0</code>，最终只打印总数。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="断点组" class="level2">
+<h2>3. 断点组</h2>
+<section id="lm_checkpoint88全文件最值得读的一段" class="level3">
+<h3>3.1 <code>lm_checkpoint</code>（:88）——全文件最值得读的一段</h3>
+<p><strong>两个文件，两种用途</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>内容</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>out/{weight}_{hidden}{_moe}.pth</code></td>
+<td><strong>半精度</strong>权重（<code>.half()</code>）</td>
+<td>推理、发布</td>
+</tr>
+<tr class="even">
+<td><code>checkpoints/{weight}_{hidden}{_moe}_resume.pth</code></td>
+<td>fp32 权重 + 优化器 + scaler + epoch/step + world_size + wandb_id</td>
+<td>断点续训</td>
+</tr>
+</tbody>
+</table>
+<p><strong>保存分支（<code>model is not None</code>）逐步</strong>：</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>raw_model <span class="op">=</span> model.module <span class="cf">if</span> <span class="bu">isinstance</span>(model, DistributedDataParallel) <span class="cf">else</span> model</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>raw_model <span class="op">=</span> <span class="bu">getattr</span>(raw_model, <span class="st">&#39;_orig_mod&#39;</span>, raw_model)      <span class="co"># ① 剥掉 DDP / torch.compile</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>state_dict <span class="op">=</span> {k: v.cpu() <span class="cf">for</span> k, v <span class="kw">in</span> raw_model.state_dict().items()}</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>torch.save({k: v.half() <span class="cf">for</span> k, v <span class="kw">in</span> state_dict.items()}, ckp_tmp)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>os.replace(ckp_tmp, ckp_path)                               <span class="co"># ② 原子写</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>步骤</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>剥 DDP / <code>_orig_mod</code></td>
+<td>否则键名会带 <code>module.</code> / <code>_orig_mod.</code> 前缀，加载不回去</td>
+</tr>
+<tr class="even">
+<td>先 <code>.cpu()</code> 再 <code>.half()</code></td>
+<td>省显存；顺序反了会先在 GPU 上生成半精度副本</td>
+</tr>
+<tr class="odd">
+<td><code>.tmp</code> + <code>os.replace</code></td>
+<td><strong>原子写</strong>：写到一半断电，旧文件仍完整</td>
+</tr>
+<tr class="even">
+<td><code>resume</code> 里存 fp32</td>
+<td>续训要恢复精度，不能是 half</td>
+</tr>
+</tbody>
+</table>
+<p><strong>断点里存了什么</strong>：</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>resume_data <span class="op">=</span> {</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;model&#39;</span>: fp32 state_dict,</span>
+<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;optimizer&#39;</span>: optimizer.state_dict(),</span>
+<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;epoch&#39;</span>: epoch, <span class="st">&#39;step&#39;</span>: step,</span>
+<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;world_size&#39;</span>: dist.get_world_size() <span class="cf">if</span> dist.is_initialized() <span class="cf">else</span> <span class="dv">1</span>,</span>
+<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&#39;wandb_id&#39;</span>: ...,</span>
+<span id="cb17-7"><a href="#cb17-7" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb17-8"><a href="#cb17-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 额外 kwargs（如 scaler）如果有 state_dict 也一起存</span></span></code></pre></div>
+<p><strong>加载分支（<code>model is None</code>）最聪明的一处</strong>：</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>saved_ws <span class="op">=</span> ckp_data.get(<span class="st">&#39;world_size&#39;</span>, <span class="dv">1</span>)</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>current_ws <span class="op">=</span> dist.get_world_size() <span class="cf">if</span> dist.is_initialized() <span class="cf">else</span> <span class="dv">1</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> saved_ws <span class="op">!=</span> current_ws:</span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>    ckp_data[<span class="st">&#39;step&#39;</span>] <span class="op">=</span> ckp_data[<span class="st">&#39;step&#39;</span>] <span class="op">*</span> saved_ws <span class="op">//</span> current_ws</span></code></pre></div>
+<p><strong>换卡数续训</strong>：4 卡跑了 100 步 ≈ 8 卡跑 50 步。换算后的 step 再喂给 <code>SkipBatchSampler</code>，就能从「大致相同的数据位置」继续。这不是精确等价， 但比从头开始或重复训练要好得多。</p>
+<p><strong>坑</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>双份磁盘占用</td>
+<td>半精度 + fp32 各一份</td>
+</tr>
+<tr class="even">
+<td><code>torch.load</code> 未传 <code>weights_only</code></td>
+<td>torch 2.6 默认 True；这里存的都是张量/基础类型，能正常加载；但如果哪天往 resume 里塞了自定义对象就会失败</td>
+</tr>
+<tr class="odd">
+<td>每保存一次都 <code>empty_cache</code></td>
+<td>单卡 CPU 训练时是无操作</td>
+</tr>
+<tr class="even">
+<td>world_size 换算是有损近似</td>
+<td>数据顺序并非严格等价</td>
+</tr>
+<tr class="odd">
+<td>路径同样依赖 cwd</td>
+<td><code>save_dir='../checkpoints'</code> 默认值</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+</section>
+<section id="业务组rl-与工具调用" class="level2">
+<h2>4. 业务组：RL 与工具调用</h2>
+<section id="lmforrewardmodel187" class="level3">
+<h3>4.1 <code>LMForRewardModel</code>（:187）</h3>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LMForRewardModel:</span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, model_path, device<span class="op">=</span><span class="st">&quot;cuda&quot;</span>, dtype<span class="op">=</span>torch.float16):</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.tokenizer <span class="op">=</span> AutoTokenizer.from_pretrained(model_path, trust_remote_code<span class="op">=</span><span class="va">True</span>)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.model <span class="op">=</span> AutoModel.from_pretrained(model_path, torch_dtype<span class="op">=</span>dtype,</span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>                                               trust_remote_code<span class="op">=</span><span class="va">True</span>).to(device).<span class="bu">eval</span>()</span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>    <span class="at">@torch.no_grad</span>()</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> get_score(<span class="va">self</span>, messages, response):</span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a>        history_text <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>.join(<span class="ss">f&quot;</span><span class="sc">{m</span>[<span class="st">&#39;role&#39;</span>]<span class="sc">}</span><span class="ss">: </span><span class="sc">{m</span>[<span class="st">&#39;content&#39;</span>]<span class="sc">}</span><span class="ss">&quot;</span> <span class="cf">for</span> m <span class="kw">in</span> messages[:<span class="op">-</span><span class="dv">1</span>])</span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a>        last_query <span class="op">=</span> messages[<span class="op">-</span><span class="dv">1</span>][<span class="st">&#39;content&#39;</span>] <span class="cf">if</span> messages <span class="cf">else</span> <span class="st">&quot;&quot;</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>        message_context <span class="op">=</span> <span class="ss">f&quot;</span><span class="sc">{</span>history_text<span class="sc">}</span><span class="ch">\n</span><span class="ss">以上是对话历史。我的新问题是：</span><span class="ch">\n</span><span class="sc">{</span>last_query<span class="sc">}</span><span class="ss">&quot;</span> <span class="cf">if</span> history_text <span class="cf">else</span> last_query</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a>        eval_messages <span class="op">=</span> [{<span class="st">&quot;role&quot;</span>: <span class="st">&quot;user&quot;</span>, <span class="st">&quot;content&quot;</span>: message_context},</span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a>                         {<span class="st">&quot;role&quot;</span>: <span class="st">&quot;assistant&quot;</span>, <span class="st">&quot;content&quot;</span>: response}]</span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>        score <span class="op">=</span> <span class="va">self</span>.model.get_score(<span class="va">self</span>.tokenizer, eval_messages)</span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="bu">max</span>(<span class="bu">min</span>(score, <span class="fl">3.0</span>), <span class="op">-</span><span class="fl">3.0</span>)</span></code></pre></div>
+<p><strong>它假设什么</strong>：外部奖励模型实现了 <code>get_score(tokenizer, messages) -&gt; float</code> 这个方法（MiniMind 作者发布的 RM 就是这样），所以必须 <code>trust_remote_code=True</code>。</p>
+<p><strong>为什么把历史拼成一段</strong>：做成了「单轮」的评分格式—— 把多轮对话历史压进一条 user 消息里，再让 RM 给 assistant 回答打分。 这样可以用单轮奖励模型评多轮对话。</p>
+<p><strong>分数裁剪 <code>[-3, 3]</code></strong>：防止异常样本（RM 打出 -10 或 20）把 RL 的梯度带飞。</p>
+<p><strong>坑</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>trust_remote_code=True</code></td>
+<td><strong>会执行仓库里的任意 Python 代码</strong>，只对可信模型开</td>
+</tr>
+<tr class="even">
+<td><code>torch_dtype=</code></td>
+<td>transformers 4.56 起推荐 <code>dtype=</code>，旧参数仍可用但已弃用</td>
+</tr>
+<tr class="odd">
+<td>评分格式是「约定的」</td>
+<td>换一个只支持 <code>sequence_classification</code> 的 RM，<code>get_score</code> 不存在会直接 AttributeError</td>
+</tr>
+<tr class="even">
+<td>fp16 加载</td>
+<td>在 1650 上 RM 推理同样不快</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="safe_math_eval208不用-eval-的算式求值" class="level3">
+<h3>4.2 <code>safe_math_eval</code>（:208）——不用 <code>eval()</code> 的算式求值</h3>
+<p><strong>背景</strong>：Agentic RL 里模型会调用 <code>calculate_math</code> 工具，参数是它自己生成的字符串。 如果直接 <code>eval()</code>，模型可以输出 <code>__import__('os').system('rm -rf /')</code>。</p>
+<p><strong>实现思路</strong>：把表达式解析成 <strong>AST</strong>，只允许白名单里的节点类型。</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> walk(node):</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(node, ast.Constant) <span class="kw">and</span> <span class="bu">type</span>(node.value) <span class="kw">in</span> (<span class="bu">int</span>, <span class="bu">float</span>): <span class="cf">return</span> node.value</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    name <span class="op">=</span> resolve(node)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> name <span class="kw">in</span> consts: <span class="cf">return</span> consts[name]</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(node, ast.UnaryOp): <span class="cf">return</span> unary_ops[<span class="bu">type</span>(node.op)](walk(node.operand))</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(node, ast.BinOp):  <span class="cf">return</span> bin_ops[<span class="bu">type</span>(node.op)](walk(node.left), walk(node.right))</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(node, ast.Call) <span class="kw">and</span> <span class="kw">not</span> node.keywords:</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> funcs[resolve(node.func)](<span class="op">*</span><span class="bu">map</span>(walk, node.args))</span>
+<span id="cb20-9"><a href="#cb20-9" aria-hidden="true" tabindex="-1"></a>    <span class="cf">raise</span> <span class="pp">ValueError</span>(...)</span></code></pre></div>
+<p><strong>白名单</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>类别</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>常量</td>
+<td><code>pi</code>、<code>e</code>、<code>tau</code></td>
+</tr>
+<tr class="even">
+<td>运算</td>
+<td><code>+ - * / // % **</code></td>
+</tr>
+<tr class="odd">
+<td>函数</td>
+<td><code>pow</code>、<code>sqrt/exp/log/log2/log10</code>、三角/反三角、<code>floor/ceil/trunc</code>、<code>fabs/fmod/hypot/gcd</code>、<code>degrees/radians</code></td>
+</tr>
+<tr class="even">
+<td>写法兼容</td>
+<td><code>sqrt(4)</code> 与 <code>math.sqrt(4)</code> 都行</td>
+</tr>
+</tbody>
+</table>
+<p><strong>两层防护</strong>：</p>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pow_guard(base, exp):</span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">abs</span>(exp) <span class="op">&gt;</span> <span class="fl">1e4</span> <span class="kw">or</span> (<span class="bu">abs</span>(base) <span class="op">&gt;</span> <span class="dv">1</span> <span class="kw">and</span> <span class="bu">abs</span>(exp) <span class="op">*</span> log10(<span class="bu">abs</span>(base)) <span class="op">&gt;</span> <span class="dv">100</span>):</span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="st">&#39;幂运算结果过大&#39;</span>)</span></code></pre></div>
+<p>防止 <code>9**9**9</code> 这种把进程算死的输入。</p>
+<p><strong>本机实测</strong>：</p>
+<pre><code>&#39;2^10&#39;          -&gt; 1024
+&#39;（1+2）×3&#39;      -&gt; 9            ← 全角符号被 translate 成半角
+&#39;sqrt(16)&#39;      -&gt; 4.0
+&#39;math.log(e)&#39;   -&gt; 1.0
+&#39;2**-3&#39;         -&gt; 0.125
+&#39;10**50&#39;        -&gt; 1e50          ← 允许
+&#39;9**9**9&#39;       -&gt; ValueError: 幂运算结果过大
+&#39;1/0&#39;           -&gt; ZeroDivisionError: division by zero    ← 没兜住！
+&quot;__import__(&#39;os&#39;)&quot; -&gt; ValueError: 不支持的表达式语法
+&#39;2+&#39;            -&gt; ValueError: 不支持的表达式语法</code></pre>
+<p><strong>一个真实的漏洞</strong>：<code>except (KeyError, SyntaxError, TypeError)</code> <strong>没有捕获 <code>ZeroDivisionError</code> 和 <code>OverflowError</code></strong>。<code>1/0</code> 会把异常抛给调用方。 （在上层 <code>execute_tool</code> 里有 <code>try/except Exception</code> 兜底，所以不会崩训练， 但如果你单独复用这个函数，要自己包一层。）</p>
+<p><strong>其他边界</strong>：</p>
+<ul>
+<li><code>type(node.value) in (int, float)</code> 排除了 <code>bool</code>（<code>True</code> 的 type 是 bool），避免 <code>True*5</code>；</li>
+<li>表达式长度上限 512，深度嵌套最多几十层，不会爆栈；</li>
+<li>支持 <code>**</code> 的右结合，<code>2**3**2 = 512</code>。</li>
+</ul>
+</section>
+<section id="rep_penalty238重复度奖励项" class="level3">
+<h3>4.3 <code>rep_penalty</code>（:238）——重复度奖励项</h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> rep_penalty(text, n<span class="op">=</span><span class="dv">3</span>, cap<span class="op">=</span><span class="fl">0.5</span>):</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    cjk <span class="op">=</span> <span class="st">&quot;CJK 与假名等大段 Unicode 区间&quot;</span></span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    toks <span class="op">=</span> re.findall(<span class="vs">rf&quot;[</span><span class="sc">{</span>cjk<span class="sc">}</span><span class="vs">]|[^\W</span><span class="sc">{</span>cjk<span class="sc">}</span><span class="vs">]+|[^\w\s]&quot;</span>, text.lower())</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    grams <span class="op">=</span> [<span class="bu">tuple</span>(toks[i:i<span class="op">+</span>n]) <span class="cf">for</span> i <span class="kw">in</span> <span class="bu">range</span>(<span class="bu">len</span>(toks)<span class="op">-</span>n<span class="op">+</span><span class="dv">1</span>)]</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> <span class="bu">min</span>(cap, (<span class="bu">len</span>(grams)<span class="op">-</span><span class="bu">len</span>(<span class="bu">set</span>(grams))) <span class="op">*</span> cap <span class="op">*</span> <span class="dv">2</span> <span class="op">/</span> <span class="bu">len</span>(grams)) <span class="cf">if</span> grams <span class="cf">else</span> <span class="fl">0.0</span></span></code></pre></div>
+<p><strong>分三步</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>步骤</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>分词</td>
+<td>中文按<strong>单字</strong>切、英文按<strong>单词</strong>切、标点单独成 token（CJK 区间写得很全，含扩展区）</td>
+</tr>
+<tr class="even">
+<td>取 3-gram</td>
+<td>连续 3 个 token 为一组</td>
+</tr>
+<tr class="odd">
+<td>算重复率</td>
+<td><code>(总数 - 去重后数) / 总数</code>，再乘 <code>cap×2</code> 并截断到 <code>cap</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>本机实测</strong>：</p>
+<pre><code>0.5000  今天天气很好，今天天气很好，今天天气很好     ← 重复率高，触顶 0.5
+0.0000  今天天气很好，我们去公园散步吧              ← 无重复
+0.0000  好的                                      ← 短于 3 个 token</code></pre>
+<p><strong>在 RL 里怎么用</strong>：作为<strong>负奖励</strong>叠加（<code>rewards -= rep_penalty(answer)</code>）， 让模型学会别复读。乘以 2 是为了让「重复率 25%」就触顶，属于比较激进的惩罚。</p>
+<p><strong>坑</strong>：</p>
+<ul>
+<li>中文按字切，所以「今天天气」这种重复词会被抓到；但同义改写抓不到；</li>
+<li>只要 3-gram 重复就扣分，<strong>合理的结构重复</strong>（如列表项）也会被误伤；</li>
+<li>文本不足 3 个 token 直接返回 0。</li>
+</ul>
+<hr />
+</section>
+</section>
+<section id="设计评价" class="level2">
+<h2>5. 设计评价</h2>
+<section id="五个值得学的做法" class="level3">
+<h3>5.1 五个值得学的做法</h3>
+<table>
+<thead>
+<tr class="header">
+<th>做法</th>
+<th>价值</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>只收「与算法无关」的工具</strong></td>
+<td>12 个脚本复用，改一处全生效</td>
+</tr>
+<tr class="even">
+<td><strong>原子写检查点</strong></td>
+<td><code>.tmp</code> + <code>os.replace</code>，断电不毁旧档</td>
+</tr>
+<tr class="odd">
+<td><strong>双文件策略</strong></td>
+<td>推理要半精度、续训要完整状态，各取所需</td>
+</tr>
+<tr class="even">
+<td><strong>跨卡数续训换算</strong></td>
+<td>换机器/换卡不丢进度</td>
+</tr>
+<tr class="odd">
+<td><strong>AST 白名单求值</strong></td>
+<td>比 <code>eval</code> 安全，比正则解析可靠</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="五个可以改进的地方" class="level3">
+<h3>5.2 五个可以改进的地方</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>问题</th>
+<th>影响</th>
+<th>建议</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>路径全是相对路径</td>
+<td>换目录就崩</td>
+<td>由调用方传入绝对路径或用 <code>pathlib</code></td>
+</tr>
+<tr class="even">
+<td>模块名硬编码（<code>mlp.experts.0.</code>）</td>
+<td>改名后统计静默出错</td>
+<td>按 <code>isinstance(MOEFeedForward)</code> 统计</td>
+</tr>
+<tr class="odd">
+<td><code>init_distributed_mode</code> 只支持 NCCL</td>
+<td>Windows/CPU 不可用</td>
+<td>加 gloo 回退</td>
+</tr>
+<tr class="even">
+<td><code>safe_math_eval</code> 漏捕 <code>ZeroDivisionError</code></td>
+<td>单测/复用时会冒泡</td>
+<td><code>except (KeyError, SyntaxError, TypeError, ZeroDivisionError, OverflowError)</code></td>
+</tr>
+<tr class="odd">
+<td>无类型标注、无单测</td>
+<td>重构风险高</td>
+<td>至少给纯函数补 <code>-&gt; float</code> 与 pytest</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+</section>
+<section id="自测题" class="level2">
+<h2>6. 自测题</h2>
+<ol type="1">
+<li><code>Logger</code> 在多卡下为什么不会重复打印？</li>
+<li><code>setup_seed</code> 为什么要设两次（进程级 + epoch 级）？</li>
+<li><code>init_distributed_mode</code> 靠哪个环境变量判断「是不是分布式」？</li>
+<li><code>resolve_dtype</code> 里 <code>including_emulation=False</code> 的作用是什么？</li>
+<li><code>get_lr</code> 在 warmup=100、lr=1e-3 时，第 0 步的学习率是多少？</li>
+<li>余弦为什么保留 10% 而不是降到 0？</li>
+<li><code>SkipBatchSampler</code> 能接受哪两种输入？</li>
+<li><code>init_model</code> 的 <code>strict=False</code> 允许什么、不允许什么？</li>
+<li>MoE 的「198M-A64M」是怎么算出来的？</li>
+<li>检查点为什么要存两份文件？</li>
+<li>换卡数续训时 step 怎么换算？为什么只是近似？</li>
+<li><code>safe_math_eval</code> 为什么不能用 <code>eval()</code>？</li>
+<li>它漏掉了哪类异常？</li>
+<li><code>rep_penalty</code> 的中文是怎么切词的？</li>
+<li>三段 3-gram 文本，重复率多少会触顶？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>全部走 <code>is_main_process()</code>，只有 rank 0 打印。</li>
+<li>进程级保证各卡初始化一致，epoch 级保证每轮 shuffle 可复现。</li>
+<li><code>RANK</code> 环境变量（<code>torchrun</code> 注入）。</li>
+<li>只认硬件原生 bf16，避免软件模拟导致「能跑但极慢」。</li>
+<li><code>1e-3 × 1/100 = 1e-5</code>（不是 0）。</li>
+<li>避免后期梯度噪声主导；保留探索能力。</li>
+<li><code>DistributedSampler</code> 或普通 <code>list</code>。</li>
+<li>允许缺失/多余键；<strong>不允许形状不匹配</strong>。</li>
+<li>总参数扣掉全部专家、再加回 1 个专家。</li>
+<li>推理要半精度，续训要 fp32 权重 + 优化器状态。</li>
+<li><code>step × saved_world / current_world</code>；数据顺序不严格等价。</li>
+<li>防提示注入/代码执行。</li>
+<li><code>ZeroDivisionError</code>、<code>OverflowError</code>。</li>
+<li>按单字切（CJK 区间），英文按单词，标点单独。</li>
+<li>25%（因为乘了 2 倍系数）。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>7. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>符号</th>
+<th>输入</th>
+<th>输出</th>
+<th>关键行为</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>is_main_process</code></td>
+<td>—</td>
+<td>bool</td>
+<td>单卡 True / 多卡 rank0 True</td>
+</tr>
+<tr class="even">
+<td><code>Logger</code></td>
+<td>任意</td>
+<td>None</td>
+<td>仅主进程 print</td>
+</tr>
+<tr class="odd">
+<td><code>setup_seed</code></td>
+<td>int</td>
+<td>None</td>
+<td>固定 5 个随机源 + cudnn 确定性</td>
+</tr>
+<tr class="even">
+<td><code>init_distributed_mode</code></td>
+<td>—</td>
+<td>local_rank</td>
+<td>看 <code>RANK</code>，NCCL 后端</td>
+</tr>
+<tr class="odd">
+<td><code>resolve_dtype</code></td>
+<td>str, device</td>
+<td>str</td>
+<td>bf16 不支持 → fp16</td>
+</tr>
+<tr class="even">
+<td><code>get_lr</code></td>
+<td>step, total, lr, ratio</td>
+<td>float</td>
+<td>warmup + 余弦（10% 地板）</td>
+</tr>
+<tr class="odd">
+<td><code>SkipBatchSampler</code></td>
+<td>sampler/list, bs, skip</td>
+<td>batch 迭代器</td>
+<td>跳过前 N 批</td>
+</tr>
+<tr class="even">
+<td><code>init_model</code></td>
+<td>config, weight, ...</td>
+<td>(model, tok)</td>
+<td>建模型 + 载权重 + 打印</td>
+</tr>
+<tr class="odd">
+<td><code>get_model_params</code></td>
+<td>model, config</td>
+<td>None</td>
+<td>打印总参数/激活参数</td>
+</tr>
+<tr class="even">
+<td><code>lm_checkpoint</code></td>
+<td>...</td>
+<td>ckp 或 None</td>
+<td>双文件 + 原子写 + 换算</td>
+</tr>
+<tr class="odd">
+<td><code>LMForRewardModel</code></td>
+<td>path</td>
+<td>对象</td>
+<td>外部 RM，<code>get_score</code></td>
+</tr>
+<tr class="even">
+<td><code>safe_math_eval</code></td>
+<td>str</td>
+<td>number</td>
+<td>AST 白名单</td>
+</tr>
+<tr class="odd">
+<td><code>rep_penalty</code></td>
+<td>str</td>
+<td>float</td>
+<td>3-gram 重复率，上限 0.5</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

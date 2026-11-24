@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_full_sft.py 详解：从学说话到学回答</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_full_sft.py 详解：从学说话到学回答</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#一句话定位">0. 一句话定位</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#逐行-diff改动只有这些">1. 逐行 diff：改动只有这些</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#参数变化的三个为什么">2. 参数变化的三个「为什么」</a>
+<ul>
+<li class="lvl3"><a href="#学习率-5e-4-1e-5降-50-倍">2.1 学习率 5e-4 → 1e-5（降 50 倍）</a></li>
+<li class="lvl3"><a href="#序列长度-340-768">2.2 序列长度 340 → 768</a></li>
+<li class="lvl3"><a href="#batch-32-16累积-8-1">2.3 batch 32 → 16、累积 8 → 1</a></li>
+</ul></li>
+<li class="lvl2"><a href="#核心sftdataset-与-loss-mask">3. 核心：SFTDataset 与 loss mask</a>
+<ul>
+<li class="lvl3"><a href="#初始化先算出两个标记序列">3.1 初始化：先算出两个「标记序列」</a></li>
+<li class="lvl3"><a href="#渲染create_chat_prompt">3.2 渲染：create_chat_prompt</a></li>
+<li class="lvl3"><a href="#两个概率性增强">3.3 两个概率性增强</a></li>
+<li class="lvl3"><a href="#编码截断padding">3.4 编码、截断、padding</a></li>
+<li class="lvl3"><a href="#生成-labels扫描-assistant-区间">3.5 生成 labels：扫描 assistant 区间</a></li>
+<li class="lvl3"><a href="#mask-长什么样示意">3.6 mask 长什么样（示意）</a></li>
+<li class="lvl3"><a href="#为什么用扫描而不是按-role-拼接">3.7 为什么用「扫描」而不是「按 role 拼接」</a></li>
+<li class="lvl3"><a href="#与模型内部-shift-的配合">3.8 与模型内部 shift 的配合</a></li>
+</ul></li>
+<li class="lvl2"><a href="#训练循环与-pretrain-完全相同">4. 训练循环：与 pretrain 完全相同</a>
+<ul>
+<li class="lvl3"><a href="#日志里的-aux_loss-一定是-0">4.1 日志里的 aux_loss 一定是 0</a></li>
+<li class="lvl3"><a href="#loss-的参考值不同了">4.2 loss 的参考值不同了</a></li>
+</ul></li>
+<li class="lvl2"><a href="#保存与续训同样两份文件">5. 保存与续训：同样两份文件</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#sft-专属的坑">6. SFT 专属的坑</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#不跑训练也能做的数据自查">7. 不跑训练也能做的数据自查</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">8. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">9. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_full_sft.py-详解从学说话到学回答" class="level1">
+<h1><code>train_full_sft.py</code> 详解：从「学说话」到「学回答」</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_full_sft.py</code>（166 行） 配套：<code>dataset/lm_dataset.py</code> 里的 <code>SFTDataset</code> 说明：本文按源码讲解；前一阶段的耗时/显存实测见《train_pretrain 详解》，此处不重复跑训练。</p>
+</blockquote>
+<hr />
+<section id="一句话定位" class="level2">
+<h2>0. 一句话定位</h2>
+<p><strong>它和 <code>train_pretrain.py</code> 的循环体一模一样，只换了 8 处。</strong> SFT 的全部难度不在训练代码，而在<strong>数据里那张 loss mask</strong>。</p>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>pretrain</th>
+<th>full_sft</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dataset</td>
+<td><code>PretrainDataset</code>（整段算 loss）</td>
+<td><code>SFTDataset</code>（<strong>只算回答</strong>）</td>
+</tr>
+<tr class="even">
+<td>学习率</td>
+<td>5e-4</td>
+<td><strong>1e-5</strong></td>
+</tr>
+<tr class="odd">
+<td>序列长度</td>
+<td>340</td>
+<td><strong>768</strong></td>
+</tr>
+<tr class="even">
+<td>batch</td>
+<td>32</td>
+<td><strong>16</strong></td>
+</tr>
+<tr class="odd">
+<td>累积步数</td>
+<td>8</td>
+<td><strong>1</strong></td>
+</tr>
+<tr class="even">
+<td>初始权重</td>
+<td><code>none</code>（随机）</td>
+<td><strong><code>pretrain</code></strong></td>
+</tr>
+<tr class="odd">
+<td>数据</td>
+<td><code>pretrain_t2t_mini.jsonl</code></td>
+<td><code>sft_t2t_mini.jsonl</code></td>
+</tr>
+<tr class="even">
+<td>保存前缀</td>
+<td><code>pretrain</code></td>
+<td><code>full_sft</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>读法建议</strong>：先看第 2 节的逐行 diff（5 分钟），再把 80% 的精力花在第 3 节的 mask 上。</p>
+<hr />
+</section>
+<section id="逐行-diff改动只有这些" class="level2">
+<h2>1. 逐行 diff：改动只有这些</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>位置</th>
+<th>pretrain</th>
+<th>full_sft</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>import</td>
+<td><code>PretrainDataset</code></td>
+<td><code>SFTDataset</code></td>
+</tr>
+<tr class="even">
+<td>Dataset 构造</td>
+<td><code>PretrainDataset(path, tok, max_length=340)</code></td>
+<td><code>SFTDataset(path, tok, max_length=768)</code></td>
+</tr>
+<tr class="odd">
+<td>默认 lr</td>
+<td>5e-4</td>
+<td>1e-5</td>
+</tr>
+<tr class="even">
+<td>默认 batch</td>
+<td>32</td>
+<td>16</td>
+</tr>
+<tr class="odd">
+<td>默认 accum</td>
+<td>8</td>
+<td>1</td>
+</tr>
+<tr class="even">
+<td>默认 seq</td>
+<td>340</td>
+<td>768</td>
+</tr>
+<tr class="odd">
+<td>默认数据</td>
+<td><code>pretrain_t2t_mini.jsonl</code></td>
+<td><code>sft_t2t_mini.jsonl</code></td>
+</tr>
+<tr class="even">
+<td>默认 from_weight</td>
+<td><code>none</code></td>
+<td><code>pretrain</code></td>
+</tr>
+<tr class="odd">
+<td>默认 save_weight</td>
+<td><code>pretrain</code></td>
+<td><code>full_sft</code></td>
+</tr>
+<tr class="even">
+<td><code>train_epoch</code> 函数体</td>
+<td>—</td>
+<td><strong>完全相同</strong></td>
+</tr>
+<tr class="odd">
+<td>main 九段结构</td>
+<td>—</td>
+<td><strong>完全相同</strong></td>
+</tr>
+</tbody>
+</table>
+<p>也就是说：<strong>除了 8 个默认值和一行 Dataset 类名，这个文件与 pretrain 逐字节相同。</strong></p>
+<blockquote>
+<p>口诀：<strong>换数据、换 lr、换长度；循环不动，mask 定胜负。</strong></p>
+</blockquote>
+<hr />
+</section>
+<section id="参数变化的三个为什么" class="level2">
+<h2>2. 参数变化的三个「为什么」</h2>
+<section id="学习率-5e-4-1e-5降-50-倍" class="level3">
+<h3>2.1 学习率 5e-4 → 1e-5（降 50 倍）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>起点</th>
+<th>可以大步走的原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>预训练</td>
+<td>随机权重</td>
+<td>没有可破坏的知识，大 lr 收敛快</td>
+</tr>
+<tr class="even">
+<td>SFT</td>
+<td>预训练权重</td>
+<td>步子大了会<strong>灾难性遗忘</strong>：对话学会了，常识丢了</td>
+</tr>
+</tbody>
+</table>
+<p>经验值：全参微调 lr 通常取预训练的 1/10 ~ 1/100；LoRA 因为只训适配器，可以用回 1e-4。</p>
+</section>
+<section id="序列长度-340-768" class="level3">
+<h3>2.2 序列长度 340 → 768</h3>
+<p>预训练是「一段文本」，340 token 够；SFT 是「多轮对话 + 系统提示 + 工具定义」， 768 才装得下一轮完整问答。长度翻倍意味着<strong>激活显存显著上升</strong>，所以：</p>
+</section>
+<section id="batch-32-16累积-8-1" class="level3">
+<h3>2.3 batch 32 → 16、累积 8 → 1</h3>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>pretrain</th>
+<th>full_sft</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>micro batch</td>
+<td>32</td>
+<td>16</td>
+<td>序列长了，单条更占显存</td>
+</tr>
+<tr class="even">
+<td>累积</td>
+<td>8</td>
+<td>1</td>
+<td>SFT 数据量小，每步都更新更划算</td>
+</tr>
+<tr class="odd">
+<td>等效 batch</td>
+<td>256</td>
+<td>16</td>
+<td>小数据 + 小 lr，不需要大 batch 稳定</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意</strong>：等效 batch 从 256 掉到 16，是刻意为之。SFT 数据通常只有几万条， 大 batch 会让一个 epoch 只有几十步，学不充分。</p>
+<hr />
+</section>
+</section>
+<section id="核心sftdataset-与-loss-mask" class="level2">
+<h2>3. 核心：<code>SFTDataset</code> 与 loss mask</h2>
+<p>这是两个脚本真正的分水岭。完整实现在 <code>dataset/lm_dataset.py:61</code>。</p>
+<section id="初始化先算出两个标记序列" class="level3">
+<h3>3.1 初始化：先算出两个「标记序列」</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.bos_id <span class="op">=</span> tokenizer(<span class="ss">f&#39;</span><span class="sc">{</span>tokenizer<span class="sc">.</span>bos_token<span class="sc">}</span><span class="ss">assistant</span><span class="ch">\n</span><span class="ss">&#39;</span>, add_special_tokens<span class="op">=</span><span class="va">False</span>).input_ids</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.eos_id <span class="op">=</span> tokenizer(<span class="ss">f&#39;</span><span class="sc">{</span>tokenizer<span class="sc">.</span>eos_token<span class="sc">}</span><span class="ch">\n</span><span class="ss">&#39;</span>, add_special_tokens<span class="op">=</span><span class="va">False</span>).input_ids</span></code></pre></div>
+<p>以 MiniMind 词表为例：</p>
+<table>
+<thead>
+<tr class="header">
+<th>序列</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>bos_id</code></td>
+<td><code>&lt;\|im_start\|&gt;</code> + <code>assistant</code> + <code>\n</code>（3 个 token 左右）</td>
+</tr>
+<tr class="even">
+<td><code>eos_id</code></td>
+<td><code>&lt;\|im_end\|&gt;</code> + <code>\n</code>（2 个 token 左右）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>它们不是单个 token，而是 token 序列</strong>——所以后面要用「子序列匹配」而不是「相等判断」。</p>
+</section>
+<section id="渲染create_chat_prompt" class="level3">
+<h3>3.2 渲染：<code>create_chat_prompt</code></h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> message <span class="kw">in</span> conversations:</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> message.get(<span class="st">&quot;role&quot;</span>) <span class="op">==</span> <span class="st">&quot;system&quot;</span> <span class="kw">and</span> message.get(<span class="st">&quot;tools&quot;</span>):</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>        tools <span class="op">=</span> json.loads(...)          <span class="co"># tools 字段可能是字符串</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> message.get(<span class="st">&quot;tool_calls&quot;</span>) <span class="kw">and</span> <span class="bu">isinstance</span>(message[<span class="st">&quot;tool_calls&quot;</span>], <span class="bu">str</span>):</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>        message[<span class="st">&quot;tool_calls&quot;</span>] <span class="op">=</span> json.loads(...)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> tokenizer.apply_chat_template(messages, tokenize<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>                                     add_generation_prompt<span class="op">=</span><span class="va">False</span>, tools<span class="op">=</span>tools)</span></code></pre></div>
+<p>三个细节：</p>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>add_generation_prompt=False</code></td>
+<td>训练数据里<strong>已经包含</strong>完整回答，不需要再补 assistant 开头</td>
+</tr>
+<tr class="even">
+<td><code>tools</code> 单独抽出来传</td>
+<td>模板有专门的 tools 分支（塞工具定义）</td>
+</tr>
+<tr class="odd">
+<td>字符串形式的 json 要 <code>loads</code></td>
+<td>jsonl 里工具调用常被存成字符串</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="两个概率性增强" class="level3">
+<h3>3.3 两个概率性增强</h3>
+<p><strong>① 注入 system prompt（20%）</strong></p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> pre_processing_chat(conversations, add_system_ratio<span class="op">=</span><span class="fl">0.2</span>):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">any</span>(conv.get(<span class="st">&#39;tools&#39;</span>) <span class="cf">for</span> conv <span class="kw">in</span> conversations): <span class="cf">return</span> conversations   <span class="co"># 工具数据不动</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> conversations[<span class="dv">0</span>].get(<span class="st">&#39;role&#39;</span>) <span class="op">!=</span> <span class="st">&#39;system&#39;</span> <span class="kw">and</span> random.random() <span class="op">&lt;</span> <span class="fl">0.2</span>:</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> [{<span class="st">&#39;role&#39;</span>: <span class="st">&#39;system&#39;</span>, <span class="st">&#39;content&#39;</span>: random.choice(SYSTEM_PROMPTS)}] <span class="op">+</span> conversations</span></code></pre></div>
+<p>让模型既见过「有 system」也见过「没有 system」，推理时加不加都能工作。</p>
+<p><strong>② 移除空思考块（80%）</strong></p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> post_processing_chat(prompt_content, empty_think_ratio<span class="op">=</span><span class="fl">0.2</span>):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">&#39;&lt;think&gt;</span><span class="ch">\n\n</span><span class="st">&lt;/think&gt;</span><span class="ch">\n\n</span><span class="st">&#39;</span> <span class="kw">in</span> prompt_content:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> random.random() <span class="op">&gt;</span> empty_think_ratio:          <span class="co"># 80% 概率</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>            prompt_content <span class="op">=</span> prompt_content.replace(<span class="st">&#39;&lt;think&gt;</span><span class="ch">\n\n</span><span class="st">&lt;/think&gt;</span><span class="ch">\n\n</span><span class="st">&#39;</span>, <span class="st">&#39;&#39;</span>)</span></code></pre></div>
+<p><strong>为什么需要</strong>：模板<strong>总是</strong>给 assistant 加一个 <code>&lt;think&gt;</code> 块（见 tokenizer 详解）。 如果数据里 100% 都带空块，模型会永远输出空思考。80% 移除、20% 保留， 让模型学会「有时想、有时不想」。</p>
+</section>
+<section id="编码截断padding" class="level3">
+<h3>3.4 编码、截断、padding</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>input_ids <span class="op">=</span> <span class="va">self</span>.tokenizer(prompt).input_ids[:<span class="va">self</span>.max_length]</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>input_ids <span class="op">+=</span> [<span class="va">self</span>.tokenizer.pad_token_id] <span class="op">*</span> (<span class="va">self</span>.max_length <span class="op">-</span> <span class="bu">len</span>(input_ids))</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>动作</th>
+<th>方式</th>
+<th>注意</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>截断</td>
+<td><strong>硬切片</strong> <code>[:max_length]</code></td>
+<td>不用 <code>truncation=True</code>，避免警告</td>
+</tr>
+<tr class="even">
+<td>padding</td>
+<td>右侧补 <code>&lt;\|endoftext\|&gt;</code>（pad id 0）</td>
+<td>补齐到定长</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="生成-labels扫描-assistant-区间" class="level3">
+<h3>3.5 生成 labels：扫描 assistant 区间</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> generate_labels(<span class="va">self</span>, input_ids):</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>    labels <span class="op">=</span> [<span class="op">-</span><span class="dv">100</span>] <span class="op">*</span> <span class="bu">len</span>(input_ids)          <span class="co"># ① 先全部屏蔽</span></span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>    i <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">while</span> i <span class="op">&lt;</span> <span class="bu">len</span>(input_ids):</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> input_ids[i:i <span class="op">+</span> <span class="bu">len</span>(<span class="va">self</span>.bos_id)] <span class="op">==</span> <span class="va">self</span>.bos_id:      <span class="co"># ② 找到回答开头</span></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>            start <span class="op">=</span> i <span class="op">+</span> <span class="bu">len</span>(<span class="va">self</span>.bos_id)</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>            end <span class="op">=</span> start</span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> end <span class="op">&lt;</span> <span class="bu">len</span>(input_ids):</span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">if</span> input_ids[end:end <span class="op">+</span> <span class="bu">len</span>(<span class="va">self</span>.eos_id)] <span class="op">==</span> <span class="va">self</span>.eos_id:   <span class="co"># ③ 找到回答结尾</span></span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>                    <span class="cf">break</span></span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>                end <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">for</span> j <span class="kw">in</span> <span class="bu">range</span>(start, <span class="bu">min</span>(end <span class="op">+</span> <span class="bu">len</span>(<span class="va">self</span>.eos_id), <span class="va">self</span>.max_length)):</span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>                labels[j] <span class="op">=</span> input_ids[j]                          <span class="co"># ④ 只给这段真值</span></span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>            i <span class="op">=</span> end <span class="op">+</span> <span class="bu">len</span>(<span class="va">self</span>.eos_id) <span class="cf">if</span> end <span class="op">&lt;</span> <span class="bu">len</span>(input_ids) <span class="cf">else</span> <span class="bu">len</span>(input_ids)</span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>        <span class="cf">else</span>:</span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>            i <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> labels</span></code></pre></div>
+<p><strong>四步翻译成人话</strong>：</p>
+<ol type="1">
+<li>默认所有位置都是 <code>-100</code>（不参与损失）；</li>
+<li>滑窗找 <code>&lt;|im_start|&gt;assistant\n</code>；</li>
+<li>从这里往后找 <code>&lt;|im_end|&gt;\n</code>；</li>
+<li>把「开头之后到结尾（含结尾）」之间的位置，标签设成真实 token。</li>
+</ol>
+</section>
+<section id="mask-长什么样示意" class="level3">
+<h3>3.6 mask 长什么样（示意）</h3>
+<p>一段两轮对话渲染后大致是：</p>
+<pre><code>&lt;|im_start|&gt;system
+你是一个AI助手&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+你好&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+&lt;/think&gt;
+你好！有什么可以帮你？&lt;|im_end|&gt;</code></pre>
+<p>对应的 labels：</p>
+<table>
+<thead>
+<tr class="header">
+<th>片段</th>
+<th>labels</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&lt;\|im_start\|&gt;system</code> … <code>&lt;\|im_end\|&gt;</code></td>
+<td>全 <code>-100</code></td>
+</tr>
+<tr class="even">
+<td><code>&lt;\|im_start\|&gt;user</code> … <code>&lt;\|im_end\|&gt;</code></td>
+<td>全 <code>-100</code></td>
+</tr>
+<tr class="odd">
+<td><code>&lt;\|im_start\|&gt;assistant\n</code>（<strong>标记本身</strong>）</td>
+<td>全 <code>-100</code></td>
+</tr>
+<tr class="even">
+<td>紧跟其后的 <code>&lt;think&gt;</code>、思考内容、回答、<code>&lt;\|im_end\|&gt;</code></td>
+<td><strong>真实 token id</strong></td>
+</tr>
+<tr class="odd">
+<td>padding</td>
+<td><code>-100</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意第一个被监督的 token 是 <code>&lt;think&gt;</code></strong>，因为模板在 <code>assistant\n</code> 之后立刻插入思考块。 这意味着模型学的是「先出 <code>&lt;think&gt;</code>，再出内容」——和 tokenizer 详解里的模板设计闭环了。</p>
+</section>
+<section id="为什么用扫描而不是按-role-拼接" class="level3">
+<h3>3.7 为什么用「扫描」而不是「按 role 拼接」</h3>
+<table>
+<thead>
+<tr class="header">
+<th>方案</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>按 role 逐条拼接、拼接时记录 mask</td>
+<td>直接</td>
+<td>必须复刻 chat template 的每一处格式</td>
+</tr>
+<tr class="even">
+<td><strong>扫描渲染后的 token 序列</strong></td>
+<td>自动适配任何模板</td>
+<td>依赖标记序列的唯一性与完整性</td>
+</tr>
+</tbody>
+</table>
+<p>作者选了后者：<strong>只要模板格式稳定，mask 永远对</strong>。代价是——模板一改，扫描就失效（见第 6 节坑）。</p>
+</section>
+<section id="与模型内部-shift-的配合" class="level3">
+<h3>3.8 与模型内部 shift 的配合</h3>
+<p>模型里是：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> CE(logits[..., :<span class="op">-</span><span class="dv">1</span>, :], labels[..., <span class="dv">1</span>:], ignore_index<span class="op">=-</span><span class="dv">100</span>)</span></code></pre></div>
+<p>所以 labels 里第 <code>j</code> 个位置的真值，监督的是<strong>位置 <code>j-1</code> 的预测</strong>。</p>
+<p>对 assistant 区间来说：header 最后一个 token（<code>\n</code>）的预测目标是 <code>&lt;think&gt;</code>—— <strong>模型要学会「看到 assistant 开头就该开始思考」</strong>。这正是我们要的。</p>
+<hr />
+</section>
+</section>
+<section id="训练循环与-pretrain-完全相同" class="level2">
+<h2>4. 训练循环：与 pretrain 完全相同</h2>
+<p><code>train_epoch</code> 的函数体一个字符都没变：</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> autocast_ctx:</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> model(input_ids, labels<span class="op">=</span>labels)</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> res.loss <span class="op">+</span> res.aux_loss</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    loss <span class="op">=</span> loss <span class="op">/</span> args.accumulation_steps</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>scaler.scale(loss).backward()</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> step <span class="op">%</span> args.accumulation_steps <span class="op">==</span> <span class="dv">0</span> <span class="kw">or</span> step <span class="op">==</span> iters:</span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    scaler.unscale_(optimizer)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    clip_grad_norm_(model.parameters(), args.grad_clip)</span>
+<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>    scaler.step(optimizer)<span class="op">;</span> scaler.update()</span>
+<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>    optimizer.zero_grad(set_to_none<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<p>所以《train_pretrain 详解》里讲的五步顺序、<code>unscale_</code> 必须在裁剪前、日志乘回累积步数、 双文件保存，全部原样适用。这里只说 SFT 特有的两点：</p>
+<section id="日志里的-aux_loss-一定是-0" class="level3">
+<h3>4.1 日志里的 <code>aux_loss</code> 一定是 0</h3>
+<p>默认 <code>use_moe=0</code>，<code>res.aux_loss</code> 是 0 维零张量。日志里 <code>logits_loss == loss</code>， 看起来像「冗余」，其实是给 MoE 版本复用的同一段代码。</p>
+</section>
+<section id="loss-的参考值不同了" class="level3">
+<h3>4.2 loss 的参考值不同了</h3>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>初始 loss 参考</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>预训练（随机权重）</td>
+<td>≈ <code>ln(6400)</code> = 8.76</td>
+</tr>
+<tr class="even">
+<td>SFT（已载入 pretrain 权重）</td>
+<td><strong>明显低于 8.76</strong>，通常在 1~4 之间，取决于数据</td>
+</tr>
+</tbody>
+</table>
+<p><strong>不要拿 SFT 的 loss 和 8.76 比</strong>——它不是从零开始，而且只在回答片段上计算， 分母（有效 token 数）比预训练小得多。</p>
+<hr />
+</section>
+</section>
+<section id="保存与续训同样两份文件" class="level2">
+<h2>5. 保存与续训：同样两份文件</h2>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>ckp <span class="op">=</span> <span class="ss">f&#39;</span><span class="sc">{</span>args<span class="sc">.</span>save_dir<span class="sc">}</span><span class="ss">/</span><span class="sc">{</span>args<span class="sc">.</span>save_weight<span class="sc">}</span><span class="ss">_</span><span class="sc">{</span>hidden<span class="sc">}{</span>moe_suffix<span class="sc">}</span><span class="ss">.pth&#39;</span>   <span class="co"># full_sft_768.pth</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>torch.save({k: v.half().cpu() ...}, ckp)</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>lm_checkpoint(..., weight<span class="op">=</span>args.save_weight, model<span class="op">=</span>model, optimizer<span class="op">=</span>..., scaler<span class="op">=</span>...)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>out/full_sft_768.pth</code></td>
+<td>推理、作为 LoRA/DPO 的底座</td>
+</tr>
+<tr class="even">
+<td><code>checkpoints/full_sft_768_resume.pth</code></td>
+<td>断点续训</td>
+</tr>
+</tbody>
+</table>
+<p>后续脚本的 <code>--from_weight</code> 默认值就能对上：LoRA 默认 <code>full_sft</code>，DPO 默认 <code>full_sft</code>。</p>
+<hr />
+</section>
+<section id="sft-专属的坑" class="level2">
+<h2>6. SFT 专属的坑</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>现象</th>
+<th>原因 / 处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>标记序列对不上</strong></td>
+<td>labels 全 -100，loss 为 <code>nan</code></td>
+<td><code>bos_id</code> 用 <code>f'{bos_token}assistant\n'</code> 生成，模板里若多了/少了空格就匹配不到</td>
+</tr>
+<tr class="even">
+<td><strong>截断把 eos 切掉</strong></td>
+<td>该样本只监督了半句话</td>
+<td><code>max_length</code> 太小；截断后没有 <code>&lt;\|im_end\|&gt;</code>，扫描标到末尾</td>
+</tr>
+<tr class="odd">
+<td><strong>最后一条是 user</strong></td>
+<td>该样本没有监督信号</td>
+<td>数据要保证 assistant 有回复；否则该条对训练无贡献</td>
+</tr>
+<tr class="even">
+<td><strong>全 -100 的 batch</strong></td>
+<td>loss 是 <code>nan</code></td>
+<td><code>cross_entropy</code> 在忽略所有位置时分母为 0；检查数据与标记</td>
+</tr>
+<tr class="odd">
+<td><strong>工具数据的 tools 字段</strong></td>
+<td>模板渲染报错</td>
+<td><code>tools</code> 可能是字符串，要 <code>json.loads</code></td>
+</tr>
+<tr class="even">
+<td><strong>忘了 <code>from_weight=pretrain</code></strong></td>
+<td>从随机权重开始 SFT</td>
+<td>检查 <code>out/pretrain_768.pth</code> 是否存在</td>
+</tr>
+<tr class="odd">
+<td><strong>Windows 多进程</strong></td>
+<td>DataLoader 崩溃</td>
+<td><code>num_workers=0</code>（脚本默认已处理）</td>
+</tr>
+<tr class="even">
+<td><strong>数据字段类型</strong></td>
+<td><code>datasets</code> 报 schema 错</td>
+<td><code>Features</code> 声明了 string 类型，<code>tool_calls</code> 列表要先转字符串存</td>
+</tr>
+</tbody>
+</table>
+<p><strong>其中第一个是最致命的</strong>：模板或分词器一改，扫描静默失效，训练照跑、loss 看起来也不异常 （只是学不到东西）。所以下一节的「自查」比训练本身更重要。</p>
+<hr />
+</section>
+<section id="不跑训练也能做的数据自查" class="level2">
+<h2>7. 不跑训练也能做的数据自查</h2>
+<p>训练前建议先打印 3 条样本，检查三件事：</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>ds <span class="op">=</span> SFTDataset(<span class="st">&quot;../dataset/sft_t2t_mini.jsonl&quot;</span>, tokenizer, max_length<span class="op">=</span><span class="dv">768</span>)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>ids, labels <span class="op">=</span> ds[<span class="dv">0</span>]</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) 有多少 token 被监督？</span></span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>sup <span class="op">=</span> (labels <span class="op">!=</span> <span class="op">-</span><span class="dv">100</span>).<span class="bu">sum</span>().item()</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="ss">f&quot;总长 </span><span class="sc">{</span><span class="bu">len</span>(ids)<span class="sc">}</span><span class="ss">，监督 </span><span class="sc">{</span>sup<span class="sc">}</span><span class="ss"> 个（占比 </span><span class="sc">{</span>sup <span class="op">/</span> <span class="bu">len</span>(ids)<span class="sc">:.1%}</span><span class="ss">）&quot;</span>)</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) 把 mask 还原成文本，看看学到的是什么</span></span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">&quot;监督内容:&quot;</span>, tokenizer.decode([t <span class="cf">for</span> t, l <span class="kw">in</span> <span class="bu">zip</span>(ids, labels) <span class="cf">if</span> l <span class="op">!=</span> <span class="op">-</span><span class="dv">100</span>]))</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) 检查是否真的扫到了 assistant 段</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a><span class="cf">assert</span> sup <span class="op">&gt;</span> <span class="dv">0</span>, <span class="st">&quot;这条样本没有任何监督信号&quot;</span></span></code></pre></div>
+<p><strong>期望看到</strong>：第 2 步打印出来的应该<strong>只有 assistant 的回答</strong>，没有 system、没有用户提问。 如果打出来的是整段对话，说明 mask 没生效；如果是空，说明标记没匹配上。</p>
+<p><strong>另一个更快的检查</strong>：随机抽 100 条，统计 <code>sup &gt; 0</code> 的比例，低于 95% 就该回去查数据与模板。</p>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>8. 自测题</h2>
+<ol type="1">
+<li>这个脚本和 <code>train_pretrain.py</code> 差哪几处？</li>
+<li>SFT 的学习率为什么比预训练小 50 倍？</li>
+<li><code>bos_id</code> / <code>eos_id</code> 为什么是序列而不是单个 id？</li>
+<li><code>add_generation_prompt</code> 为什么是 False？</li>
+<li>空思考块为什么要按 80% 概率移除？</li>
+<li>mask 的扫描算法分哪四步？</li>
+<li>第一个被监督的 token 是什么？为什么？</li>
+<li>为什么用「扫描 token 序列」而不是「按 role 拼接」？</li>
+<li>模型内部的 shift 和这个 mask 怎么配合？</li>
+<li>SFT 的 loss 能不能和 <code>ln(6400)</code> 比？为什么？</li>
+<li>labels 全为 -100 会发生什么？</li>
+<li>模板改了会有什么后果？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>Dataset、lr、seq、batch、accum、初始权重、数据、保存前缀（8 处）。</li>
+<li>预训练权重已含知识，大步会灾难性遗忘。</li>
+<li>它们是「标记 + 角色名 + 换行」的 token 序列，只能做子序列匹配。</li>
+<li>训练数据已包含完整回答，不需要再补 assistant 开头。</li>
+<li>让模型学会自适应思考，而不是永远输出空思考标签。</li>
+<li>全 -100 → 找 bos 标记 → 找 eos 标记 → 区间填真值。</li>
+<li><code>&lt;think&gt;</code>，因为模板紧接在 <code>assistant\n</code> 之后插入思考块。</li>
+<li>自动适配任意模板，不用复刻拼接逻辑；代价是依赖模板稳定性。</li>
+<li><code>logits[:-1]</code> 对 <code>labels[1:]</code>，header 末位预测第一个回答 token。</li>
+<li>不能；起始 loss 已低于 8.76，且监督范围只是回答片段。</li>
+<li><code>cross_entropy</code> 分母为 0，返回 <code>nan</code>。</li>
+<li>标记匹配失败，labels 全 -100，训练静默失效。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>9. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>段落</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Dataset</td>
+<td><code>SFTDataset</code>：模板渲染 + 扫描 mask</td>
+</tr>
+<tr class="even">
+<td>标记</td>
+<td><code>bos_id = "&lt;\|im_start\|&gt;assistant\n"</code>、<code>eos_id = "&lt;\|im_end\|&gt;\n"</code></td>
+</tr>
+<tr class="odd">
+<td>增强</td>
+<td>20% 注入 system、80% 移除空 think</td>
+</tr>
+<tr class="even">
+<td>编码</td>
+<td>硬切片截断 + 右侧 pad</td>
+</tr>
+<tr class="odd">
+<td>mask</td>
+<td>只有 assistant 区间是真值，其余 -100</td>
+</tr>
+<tr class="even">
+<td>lr</td>
+<td>1e-5（预训练的 1/50）</td>
+</tr>
+<tr class="odd">
+<td>seq / batch</td>
+<td>768 / 16，累积 1</td>
+</tr>
+<tr class="even">
+<td>初始权重</td>
+<td><code>pretrain</code></td>
+</tr>
+<tr class="odd">
+<td>保存</td>
+<td><code>full_sft_768.pth</code> + resume</td>
+</tr>
+<tr class="even">
+<td>循环</td>
+<td>与 pretrain 完全相同</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

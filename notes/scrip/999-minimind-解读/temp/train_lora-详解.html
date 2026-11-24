@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_lora.py 详解：只训练 0.6% 的参数</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_lora.py 详解：只训练 0.6% 的参数</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#定位sft-的低成本替代版">0. 定位：SFT 的「低成本替代版」</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#lora-的三行数学">1. LoRA 的三行数学</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#model_lora.py-逐个拆">2. model_lora.py 逐个拆</a>
+<ul>
+<li class="lvl3"><a href="#class-lora6">2.1 class LoRA（:6）</a></li>
+<li class="lvl3"><a href="#apply_lora23注入-猴补丁">2.2 apply_lora（:23）：注入 + 猴补丁</a></li>
+<li class="lvl3"><a href="#load_lora37">2.3 load_lora（:37）</a></li>
+<li class="lvl3"><a href="#save_lora47只存适配器">2.4 save_lora（:47）：只存适配器</a></li>
+<li class="lvl3"><a href="#merge_lora59把增量烤回原权重">2.5 merge_lora（:59）：把增量「烤」回原权重</a></li>
+</ul></li>
+<li class="lvl2"><a href="#train_lora.py-逐段">3. train_lora.py 逐段</a>
+<ul>
+<li class="lvl3"><a href="#参数">3.1 参数</a></li>
+<li class="lvl3"><a href="#注入-冻结-统计">3.2 注入 + 冻结 + 统计</a></li>
+<li class="lvl3"><a href="#训练循环与-sft-相同只有两处变化">3.3 训练循环：与 SFT 相同，只有两处变化</a></li>
+<li class="lvl3"><a href="#强制关闭-compile">3.4 强制关闭 compile</a></li>
+<li class="lvl3"><a href="#保存与续训">3.5 保存与续训</a></li>
+<li class="lvl3"><a href="#恢复">3.6 恢复</a></li>
+</ul></li>
+<li class="lvl2"><a href="#与-sft-的-diff">4. 与 SFT 的 diff</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#训练完之后怎么用">5. 训练完之后怎么用</a>
+<ul>
+<li class="lvl3"><a href="#直接推理不合并">5.1 直接推理（不合并）</a></li>
+<li class="lvl3"><a href="#合并成完整权重">5.2 合并成完整权重</a></li>
+<li class="lvl3"><a href="#部署时的取舍">5.3 部署时的取舍</a></li>
+</ul></li>
+<li class="lvl2"><a href="#坑">6. 坑</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#显存与本地可行性">7. 显存与本地可行性</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">8. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">9. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_lora.py-详解只训练-0.6-的参数" class="level1">
+<h1><code>train_lora.py</code> 详解：只训练 0.6% 的参数</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_lora.py</code>（180 行） 配套：<code>model/model_lora.py</code>（70 行，LoRA 全部实现）、<code>SFTDataset</code> 说明：本文按源码讲解，不跑训练。</p>
+</blockquote>
+<hr />
+<section id="定位sft-的低成本替代版" class="level2">
+<h2>0. 定位：SFT 的「低成本替代版」</h2>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>全参 SFT</th>
+<th>LoRA</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>训练参数</td>
+<td>63.91M（100%）</td>
+<td><strong>约 0.39M（0.62%）</strong></td>
+</tr>
+<tr class="even">
+<td>优化器状态</td>
+<td>全模型</td>
+<td>只有适配器</td>
+</tr>
+<tr class="odd">
+<td>产出文件</td>
+<td><code>full_sft_768.pth</code>（~128MB）</td>
+<td><code>lora_xxx_768.pth</code>（<strong>~0.8MB</strong>）</td>
+</tr>
+<tr class="even">
+<td>学习率</td>
+<td>1e-5</td>
+<td><strong>1e-4</strong>（大 10 倍）</td>
+</tr>
+<tr class="odd">
+<td>训练轮数</td>
+<td>2</td>
+<td><strong>10</strong></td>
+</tr>
+<tr class="even">
+<td>数据</td>
+<td>通用 SFT</td>
+<td>领域数据（医疗/自我认知）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>它和 SFT 共用同一个 Dataset、同一套 mask、同一个训练循环</strong>， 差别只在「哪些参数参与优化」和「保存什么」。</p>
+<blockquote>
+<p>口诀：<strong>冻结底座，旁挂低秩；A 随机 B 归零，只存适配器。</strong></p>
+</blockquote>
+<hr />
+</section>
+<section id="lora-的三行数学" class="level2">
+<h2>1. LoRA 的三行数学</h2>
+<pre><code>原始：  y = Wx
+LoRA： y = Wx + (B·A·scaling)x     其中 A ∈ R^{r×d}, B ∈ R^{d×r}, r ≪ d</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th>矩阵</th>
+<th>形状（d=768, r=16）</th>
+<th>初始化</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>A</td>
+<td>16 × 768</td>
+<td>高斯 <code>N(0, 0.02²)</code></td>
+</tr>
+<tr class="even">
+<td>B</td>
+<td>768 × 16</td>
+<td><strong>全零</strong></td>
+</tr>
+<tr class="odd">
+<td>scaling</td>
+<td>标量</td>
+<td><code>alpha / r</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>B 初始化为零的意义</strong>：训练第 0 步时 <code>B·A = 0</code>，LoRA 对原模型<strong>零扰动</strong>。 模型从「和底座完全一样」的状态开始学，不会先被随机噪声破坏。 如果 A、B 都随机初始化，训练前期会花时间「修复噪声」。</p>
+<p><strong>参数量计算</strong>（本模型）：</p>
+<pre><code>每个方阵模块：768×16 + 16×768 = 24,576
+注入模块数：q_proj + o_proj = 2 × 8 层 = 16
+总计：24,576 × 16 = 393,216 ≈ 0.39M
+占 63.91M 的 0.62%</code></pre>
+<hr />
+</section>
+<section id="model_lora.py-逐个拆" class="level2">
+<h2>2. <code>model_lora.py</code> 逐个拆</h2>
+<section id="class-lora6" class="level3">
+<h3>2.1 <code>class LoRA</code>（:6）</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoRA(nn.Module):</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, in_features, out_features, rank, lora_alpha<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>        scaling <span class="op">=</span> (rank <span class="cf">if</span> lora_alpha <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> lora_alpha) <span class="op">/</span> rank</span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.register_buffer(<span class="st">&quot;scaling&quot;</span>, torch.tensor(scaling, dtype<span class="op">=</span>torch.float32))</span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.A <span class="op">=</span> nn.Linear(in_features, rank, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.B <span class="op">=</span> nn.Linear(rank, out_features, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.A.weight.data.normal_(<span class="fl">0.0</span>, <span class="fl">0.02</span>)</span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.B.weight.data.zero_()</span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> <span class="va">self</span>.B(<span class="va">self</span>.A(x)) <span class="op">*</span> <span class="va">self</span>.scaling</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>scaling</code> 用 buffer</td>
+<td>会进 state_dict（保存/加载时带上），但不参与梯度</td>
+</tr>
+<tr class="even">
+<td><code>lora_alpha=None</code></td>
+<td>默认 scaling = 1（alpha 等于 rank）</td>
+</tr>
+<tr class="odd">
+<td>两个无 bias 的 Linear</td>
+<td>A 降维、B 升维</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="apply_lora23注入-猴补丁" class="level3">
+<h3>2.2 <code>apply_lora</code>（:23）：注入 + 猴补丁</h3>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, module <span class="kw">in</span> model.named_modules():</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(module, nn.Linear) <span class="kw">and</span> module.in_features <span class="op">==</span> module.out_features:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        lora <span class="op">=</span> LoRA(...).to(model.device)</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>        <span class="bu">setattr</span>(module, <span class="st">&quot;lora&quot;</span>, lora)                      <span class="co"># ① 注册成子模块</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        original_forward <span class="op">=</span> module.forward</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>        <span class="kw">def</span> forward_with_lora(x, layer1<span class="op">=</span>original_forward, layer2<span class="op">=</span>lora):</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> layer1(x) <span class="op">+</span> layer2(x)                   <span class="co"># ② 原输出 + 增量</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>        module.forward <span class="op">=</span> forward_with_lora                 <span class="co"># ③ 猴补丁</span></span></code></pre></div>
+<p><strong>三个关键点</strong>：</p>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>点</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>setattr(module, "lora", lora)</code></td>
+<td>让 LoRA 成为已注册子模块，<code>.parameters()</code> / <code>state_dict()</code> 才能看到它</td>
+</tr>
+<tr class="even">
+<td>闭包默认参数 <code>layer1=..., layer2=...</code></td>
+<td><strong>早绑定</strong>。如果直接引用外层变量，所有模块会共享最后一次循环的值（经典 Python 闭包陷阱）</td>
+</tr>
+<tr class="odd">
+<td><code>module.forward = ...</code></td>
+<td>不用改模型源码，也不新增模块层级，模型其他部分完全无感</td>
+</tr>
+</tbody>
+</table>
+<p><strong>代价</strong>：<code>forward</code> 不再是 <code>nn.Module</code> 的标准方法，<code>torch.compile</code> 无法追踪—— 所以 <code>train_lora.py</code> 里会强制关掉 compile（见 3.4）。</p>
+</section>
+<section id="load_lora37" class="level3">
+<h3>2.3 <code>load_lora</code>（:37）</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>state_dict <span class="op">=</span> torch.load(path, map_location<span class="op">=</span>model.device)</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>state_dict <span class="op">=</span> {(k[<span class="dv">7</span>:] <span class="cf">if</span> k.startswith(<span class="st">&#39;module.&#39;</span>) <span class="cf">else</span> k): v ...}</span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, module <span class="kw">in</span> model.named_modules():</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">hasattr</span>(module, <span class="st">&#39;lora&#39;</span>):</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>        lora_state <span class="op">=</span> {k.replace(<span class="ss">f&#39;</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">.lora.&#39;</span>, <span class="st">&#39;&#39;</span>): v <span class="cf">for</span> k, v <span class="kw">in</span> state_dict.items() <span class="cf">if</span> <span class="ss">f&#39;</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">.lora.&#39;</span> <span class="kw">in</span> k}</span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>        module.lora.load_state_dict(lora_state, strict<span class="op">=</span><span class="va">False</span>)</span></code></pre></div>
+<ul>
+<li>去掉 DDP 的 <code>module.</code> 前缀；</li>
+<li>按模块名前缀把 key 分发到各适配器；</li>
+<li><code>strict=False</code>：允许部分缺失（<strong>但形状不匹配仍会报错</strong>）。</li>
+</ul>
+</section>
+<section id="save_lora47只存适配器" class="level3">
+<h3>2.4 <code>save_lora</code>（:47）：只存适配器</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>lora_state <span class="op">=</span> {<span class="ss">f&#39;</span><span class="sc">{</span>clean_name<span class="sc">}</span><span class="ss">.lora.</span><span class="sc">{k}</span><span class="ss">&#39;</span>: v.cpu().half() <span class="cf">if</span> k.endswith(<span class="st">&#39;.weight&#39;</span>)</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>              <span class="cf">else</span> v.cpu().<span class="bu">float</span>() <span class="cf">for</span> k, v <span class="kw">in</span> module.lora.state_dict().items()}</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>只遍历 <code>hasattr(module,'lora')</code> 的模块</td>
+<td>底座权重一个字节都不存</td>
+</tr>
+<tr class="even">
+<td>权重转 half，buffer（scaling）转 float</td>
+<td>权重是主体，scaling 只需一个标量</td>
+</tr>
+<tr class="odd">
+<td>体积约 0.8 MB</td>
+<td>相当于底座 128MB 的 0.6%</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="merge_lora59把增量烤回原权重" class="level3">
+<h3>2.5 <code>merge_lora</code>（:59）：把增量「烤」回原权重</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, module <span class="kw">in</span> model.named_modules():</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="bu">isinstance</span>(module, nn.Linear) <span class="kw">and</span> <span class="st">&#39;.lora.&#39;</span> <span class="kw">not</span> <span class="kw">in</span> name:</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>        delta <span class="op">=</span> (module.lora.B.weight.<span class="bu">float</span>() <span class="op">@</span> module.lora.A.weight.<span class="bu">float</span>()) <span class="op">*</span> module.lora.scaling.<span class="bu">float</span>()</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>        state_dict[<span class="ss">f&#39;</span><span class="sc">{</span>name<span class="sc">}</span><span class="ss">.weight&#39;</span>] <span class="op">+=</span> delta</span></code></pre></div>
+<p><code>ΔW = B·A·scaling</code>，加到原权重上，导出完整模型。<strong>推理时零额外开销</strong>。</p>
+<hr />
+</section>
+</section>
+<section id="train_lora.py-逐段" class="level2">
+<h2>3. <code>train_lora.py</code> 逐段</h2>
+<section id="参数" class="level3">
+<h3>3.1 参数</h3>
+<table>
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>默认</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>lora_rank</code></td>
+<td>16</td>
+<td>低秩维数</td>
+</tr>
+<tr class="even">
+<td><code>lora_alpha</code></td>
+<td>None</td>
+<td>默认等于 rank（scaling=1）</td>
+</tr>
+<tr class="odd">
+<td><code>lora_name</code></td>
+<td><code>lora_medical</code></td>
+<td>适配器文件名前缀</td>
+</tr>
+<tr class="even">
+<td><code>epochs</code></td>
+<td><strong>10</strong></td>
+<td>领域数据少，多轮</td>
+</tr>
+<tr class="odd">
+<td><code>batch_size</code></td>
+<td>32</td>
+<td>底座冻结，显存压力小</td>
+</tr>
+<tr class="even">
+<td><code>learning_rate</code></td>
+<td><strong>1e-4</strong></td>
+<td>比 SFT 大 10 倍</td>
+</tr>
+<tr class="odd">
+<td><code>max_seq_len</code></td>
+<td>340</td>
+<td>领域问答较短</td>
+</tr>
+<tr class="even">
+<td><code>data_path</code></td>
+<td><code>lora_medical.jsonl</code></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><code>from_weight</code></td>
+<td><code>full_sft</code></td>
+<td>在 SFT 基础上加技能</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="注入-冻结-统计" class="level3">
+<h3>3.2 注入 + 冻结 + 统计</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>model, tokenizer <span class="op">=</span> init_model(lm_config, args.from_weight)</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>apply_lora(model, rank<span class="op">=</span>args.lora_rank, lora_alpha<span class="op">=</span>args.lora_alpha)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>total <span class="op">=</span> <span class="bu">sum</span>(p.numel() <span class="cf">for</span> p <span class="kw">in</span> model.parameters())</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>lora_count <span class="op">=</span> <span class="bu">sum</span>(p.numel() <span class="cf">for</span> n, p <span class="kw">in</span> model.named_parameters() <span class="cf">if</span> <span class="st">&#39;lora&#39;</span> <span class="kw">in</span> n)</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>Logger(<span class="ss">f&quot;LoRA 参数占比: </span><span class="sc">{</span>lora_count <span class="op">/</span> total <span class="op">*</span> <span class="dv">100</span><span class="sc">:.2f}</span><span class="ss">%&quot;</span>)</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>lora_params <span class="op">=</span> []</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> name, param <span class="kw">in</span> model.named_parameters():</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> <span class="st">&#39;lora&#39;</span> <span class="kw">in</span> name:</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>        param.requires_grad <span class="op">=</span> <span class="va">True</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>        lora_params.append(param)</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>        param.requires_grad <span class="op">=</span> <span class="va">False</span></span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> optim.AdamW(lora_params, lr<span class="op">=</span>args.learning_rate)     <span class="co"># 只收适配器</span></span></code></pre></div>
+<p><strong>三件事缺一不可</strong>：注入 → 冻结非 LoRA → 优化器只收 LoRA。 如果忘了冻结，底座参数也会被更新（虽然不在优化器里就不会更新， 但显式冻结能避免梯度计算浪费显存）。</p>
+</section>
+<section id="训练循环与-sft-相同只有两处变化" class="level3">
+<h3>3.3 训练循环：与 SFT 相同，只有两处变化</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> res.loss <span class="op">+</span> res.aux_loss</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> loss <span class="op">/</span> args.accumulation_steps</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>scaler.scale(loss).backward()</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> step <span class="op">%</span> args.accumulation_steps <span class="op">==</span> <span class="dv">0</span> <span class="kw">or</span> step <span class="op">==</span> iters:</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>    scaler.unscale_(optimizer)</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    torch.nn.utils.clip_grad_norm_(lora_params, args.grad_clip)   <span class="co"># ← 只裁 LoRA</span></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>    scaler.step(optimizer)</span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>    ...</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>变化</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>clip_grad_norm_(lora_params, ...)</code></td>
+<td>其他参数没有梯度，传全体会浪费时间</td>
+</tr>
+<tr class="even">
+<td>保存改为 <code>save_lora(...)</code></td>
+<td>只存适配器</td>
+</tr>
+</tbody>
+</table>
+<p>数据侧完全复用 <code>SFTDataset</code>：同样只对 assistant 区间算损失。</p>
+</section>
+<section id="强制关闭-compile" class="level3">
+<h3>3.4 强制关闭 compile</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.use_compile <span class="op">==</span> <span class="dv">1</span>:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    args.use_compile <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    Logger(<span class="st">&#39;[LoRA] monkey-patch forward 与 torch.compile 不兼容，use_compile 已自动关闭&#39;</span>)</span></code></pre></div>
+<p><strong>这是很贴心的处理</strong>：猴补丁的 <code>forward</code> 是普通 Python 函数，inductor 无法追踪； 与其报错，不如直接关掉并提示。</p>
+</section>
+<section id="保存与续训" class="level3">
+<h3>3.5 保存与续训</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>save_lora(model, lora_save_path)          <span class="co"># out/lora_medical_768.pth</span></span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>lm_checkpoint(lm_config, weight<span class="op">=</span>args.lora_name, model<span class="op">=</span>model, optimizer<span class="op">=</span>optimizer, ...)</span></code></pre></div>
+<p><strong>注意顺序</strong>：先存适配器，再存 resume。resume 里包含完整 state_dict（含 LoRA 参数）， 所以「续训」和「分发适配器」是两件事。</p>
+</section>
+<section id="恢复" class="level3">
+<h3>3.6 恢复</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(ckp_data[<span class="st">&#39;model&#39;</span>], strict<span class="op">=</span><span class="va">False</span>)   <span class="co"># ← strict=False</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>optimizer.load_state_dict(ckp_data[<span class="st">&#39;optimizer&#39;</span>])</span></code></pre></div>
+<p><strong>为什么 <code>strict=False</code></strong>：续训时模型是刚注入 LoRA 的结构，与保存时结构一致， 但如果配置里 <code>lora_rank</code> 改了，键就少/多了——用 <code>strict=False</code> 至少能加载上主干部分。 （真正换 rank 续训是错误用法，形状不匹配仍会报错。）</p>
+<hr />
+</section>
+</section>
+<section id="与-sft-的-diff" class="level2">
+<h2>4. 与 SFT 的 diff</h2>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>full_sft</th>
+<th>lora</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>训练参数</td>
+<td>全部</td>
+<td>仅适配器</td>
+</tr>
+<tr class="even">
+<td>lr</td>
+<td>1e-5</td>
+<td>1e-4</td>
+</tr>
+<tr class="odd">
+<td>epochs</td>
+<td>2</td>
+<td>10</td>
+</tr>
+<tr class="even">
+<td>保存</td>
+<td>完整权重</td>
+<td>适配器</td>
+</tr>
+<tr class="odd">
+<td>compile</td>
+<td>可用</td>
+<td>强制关闭</td>
+</tr>
+<tr class="even">
+<td>clip 范围</td>
+<td>全模型</td>
+<td>仅 LoRA</td>
+</tr>
+<tr class="odd">
+<td>数据</td>
+<td>通用 SFT</td>
+<td>领域数据</td>
+</tr>
+</tbody>
+</table>
+<p><strong>其余（Dataset、mask、五步循环、断点、DDP）完全一致。</strong></p>
+<hr />
+</section>
+<section id="训练完之后怎么用" class="level2">
+<h2>5. 训练完之后怎么用</h2>
+<section id="直接推理不合并" class="level3">
+<h3>5.1 直接推理（不合并）</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> eval_llm.py <span class="at">--load_from</span> model <span class="at">--weight</span> full_sft <span class="dt">\</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>                   <span class="at">--lora_weight</span> lora_medical <span class="at">--lora_rank</span> 16</span></code></pre></div>
+<p><code>eval_llm.py</code> 会：加载底座 → <code>apply_lora(rank)</code> → <code>load_lora(适配器)</code> → 推理。</p>
+<p><strong>注意</strong>：<code>--lora_rank</code> 必须与训练时一致（默认 16）。</p>
+</section>
+<section id="合并成完整权重" class="level3">
+<h3>5.2 合并成完整权重</h3>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> model.model_lora <span class="im">import</span> apply_lora, merge_lora</span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> ...                      <span class="co"># 先建好底座并 apply_lora(rank)</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>merge_lora(model, <span class="st">&quot;out/lora_medical_768.pth&quot;</span>, <span class="st">&quot;out/merged_768.pth&quot;</span>)</span></code></pre></div>
+<p>或走 <code>scripts/convert_model.py</code>，一步导出成 transformers 格式。</p>
+</section>
+<section id="部署时的取舍" class="level3">
+<h3>5.3 部署时的取舍</h3>
+<table>
+<thead>
+<tr class="header">
+<th>方式</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>带着适配器</td>
+<td>一个底座 + 多个小适配器</td>
+<td>推理要多加载一次</td>
+</tr>
+<tr class="even">
+<td>合并</td>
+<td>推理零开销、可转 GGUF/vLLM</td>
+<td>每个任务一份完整权重</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+</section>
+<section id="坑" class="level2">
+<h2>6. 坑</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>现象</th>
+<th>原因 / 处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>rank 不一致</strong></td>
+<td>加载报形状错误，或效果全无</td>
+<td>训练/推理/合并三处的 rank 必须一致</td>
+</tr>
+<tr class="even">
+<td><strong>只注入方阵</strong></td>
+<td>换配置后 LoRA 没加到 q_proj</td>
+<td>条件 <code>in_features == out_features</code>；若 <code>head_dim ≠ hidden/heads</code>，q_proj 不再是方阵</td>
+</tr>
+<tr class="odd">
+<td>compile 开启</td>
+<td>报错或静默无效</td>
+<td>脚本已自动关闭；别手改回来</td>
+</tr>
+<tr class="even">
+<td>优化器收了全模型</td>
+<td>显存暴涨</td>
+<td>必须只传 <code>lora_params</code></td>
+</tr>
+<tr class="odd">
+<td>忘记冻结</td>
+<td>梯度计算浪费显存</td>
+<td>显式 <code>requires_grad=False</code></td>
+</tr>
+<tr class="even">
+<td>合并时忘了 apply_lora</td>
+<td><code>module.lora</code> 不存在</td>
+<td><code>merge_lora</code> 前先注入</td>
+</tr>
+<tr class="odd">
+<td><code>save_lora</code> 后改名</td>
+<td>加载时 key 对不上</td>
+<td>前缀名与模块名绑定</td>
+</tr>
+<tr class="even">
+<td>多领域适配器</td>
+<td>不能同时加载两个</td>
+<td>需要分别合并，或用多适配器方案（peft 支持）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>「只注入方阵」这条最隐蔽</strong>：MiniMind 默认 <code>head_dim = hidden/heads = 96</code>， 所以 q_proj/o_proj 是 768→768 的方阵，正好被注入。 如果哪天把 <code>head_dim</code> 解耦（像 Qwen3 那样），<code>q_proj</code> 变成 768→1024， <code>in_features != out_features</code>，<strong>LoRA 会静默地不注入 q_proj</strong>——训练照跑，效果变差。</p>
+<hr />
+</section>
+<section id="显存与本地可行性" class="level2">
+<h2>7. 显存与本地可行性</h2>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>底座权重</td>
+<td>冻结，但仍需存放（fp16 ~128MB）</td>
+</tr>
+<tr class="even">
+<td>底座梯度</td>
+<td><strong>不产生</strong>（冻结）</td>
+</tr>
+<tr class="odd">
+<td>适配器 + 优化器状态</td>
+<td>0.39M × 16B ≈ 6 MB</td>
+</tr>
+<tr class="even">
+<td>激活</td>
+<td>主要开销（batch 32 × seq 340）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：比全参 SFT 省得多。4GB 卡上把 <code>batch_size</code> 降到 8~16 即可跑， 这是本项目<strong>最适合本机体验</strong>的训练脚本。</p>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>8. 自测题</h2>
+<ol type="1">
+<li>LoRA 的参数量怎么算？本模型是多少？</li>
+<li>为什么 B 初始化为 0？</li>
+<li><code>scaling</code> 是什么？<code>lora_alpha=None</code> 时等于多少？</li>
+<li>为什么只给方阵 Linear 加 LoRA？</li>
+<li>猴补丁里为什么要用默认参数 <code>layer1=..., layer2=...</code>？</li>
+<li>为什么优化器只传 <code>lora_params</code>？</li>
+<li>为什么 clip 也只作用在 LoRA 参数上？</li>
+<li>训练输出为什么只有 0.8MB？</li>
+<li>加载适配器时 rank 为什么必须一致？</li>
+<li>什么时候需要 merge？</li>
+<li>compile 为什么必须关？</li>
+<li><code>strict=False</code> 在这里允许什么、不允许什么？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li><code>(d×r + r×d) × 模块数 = 24,576 × 16 ≈ 0.39M</code>，占 0.62%。</li>
+<li>保证初始时对原模型零扰动。</li>
+<li><code>alpha / rank</code>；alpha 为 None 时等于 rank，即 scaling=1。</li>
+<li>保证输入输出维度一致，增量才能直接相加。</li>
+<li>早绑定，避免闭包捕获循环变量。</li>
+<li>冻结参数没梯度，收进来只会浪费显存。</li>
+<li>其他参数没有梯度。</li>
+<li>只保存 A/B 权重（约 0.39M 参数）。</li>
+<li>A/B 的形状由 rank 决定，不一致就加载不进。</li>
+<li>部署时想零额外开销，或要转 GGUF/vLLM。</li>
+<li>猴补丁的 forward 无法被 inductor 追踪。</li>
+<li>允许键缺失/多余；不允许形状不匹配。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>9. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>段落</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>LoRA 结构</td>
+<td>A(降维) + B(升维) + scaling</td>
+</tr>
+<tr class="even">
+<td>初始化</td>
+<td>A 高斯、B 零</td>
+</tr>
+<tr class="odd">
+<td>注入</td>
+<td>仅 <code>in == out</code> 的 Linear（q_proj / o_proj）</td>
+</tr>
+<tr class="even">
+<td>猴补丁</td>
+<td>闭包默认参数早绑定</td>
+</tr>
+<tr class="odd">
+<td>训练</td>
+<td>冻结底座、只优化适配器、只裁适配器</td>
+</tr>
+<tr class="even">
+<td>保存</td>
+<td>只存适配器（~0.8MB）</td>
+</tr>
+<tr class="odd">
+<td>合并</td>
+<td><code>ΔW = B@A*scaling</code> 加回原权重</td>
+</tr>
+<tr class="even">
+<td>学习率</td>
+<td>1e-4（比 SFT 大 10 倍）</td>
+</tr>
+<tr class="odd">
+<td>轮数</td>
+<td>10（数据少）</td>
+</tr>
+<tr class="even">
+<td>本机</td>
+<td>4GB 可跑，降 batch 即可</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

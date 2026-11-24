@@ -1,0 +1,2404 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MiniMind 源码解读：3 块钱从零训练一个 LLM</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; MiniMind 源码解读：3 块钱从零训练一个 LLM</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#先看结论这个项目到底是什么">先看结论：这个项目到底是什么</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#这本书怎么读">这本书怎么读</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#第-1-章-项目定位与版本演进">第 1 章 项目定位与版本演进</a>
+<ul>
+<li class="lvl3"><a href="#它反对什么">1.1 它反对什么</a></li>
+<li class="lvl3"><a href="#版本演进一条对齐主流生态的路线">1.2 版本演进：一条「对齐主流生态」的路线</a></li>
+<li class="lvl3"><a href="#它适合谁-不适合谁">1.3 它适合谁 / 不适合谁</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-2-章-代码地图与阅读路线">第 2 章 代码地图与阅读路线</a>
+<ul>
+<li class="lvl3"><a href="#文件清单按重要度排序">2.1 文件清单（按重要度排序）</a></li>
+<li class="lvl3"><a href="#推荐阅读顺序">2.2 推荐阅读顺序</a></li>
+<li class="lvl3"><a href="#项目的目录约定">2.3 项目的目录约定</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-3-章-模型结构逐层拆解">第 3 章 模型结构逐层拆解</a>
+<ul>
+<li class="lvl3"><a href="#config默认值就是全部设计">3.1 Config：默认值就是全部设计</a></li>
+<li class="lvl3"><a href="#rmsnorm为什么先转-float">3.2 RMSNorm：为什么先转 float</a></li>
+<li class="lvl3"><a href="#rope-yarn位置编码怎么外推">3.3 RoPE + YaRN：位置编码怎么外推</a></li>
+<li class="lvl3"><a href="#attentionqwen3-味的三个细节">3.4 Attention：Qwen3 味的三个细节</a></li>
+<li class="lvl3"><a href="#ffnswiglu">3.5 FFN：SwiGLU</a></li>
+<li class="lvl3"><a href="#blockpre-norm-残差">3.6 Block：Pre-Norm 残差</a></li>
+<li class="lvl3"><a href="#moe-层项目里最有想法的一段">3.7 MoE 层：项目里最「有想法」的一段</a></li>
+<li class="lvl3"><a href="#forcausallm三个工程点">3.8 ForCausalLM：三个工程点</a></li>
+<li class="lvl3"><a href="#手写的-generate一个完整的采样器">3.9 手写的 generate：一个完整的采样器</a></li>
+<li class="lvl3"><a href="#实测模型在你机器上的样子">3.10 实测：模型在你机器上的样子</a></li>
+<li class="lvl3"><a href="#与-qwen3-的结构对应">3.11 与 Qwen3 的结构对应</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-4-章-数据管线一条-jsonl-走完全流程">第 4 章 数据管线：一条 jsonl 走完全流程</a>
+<ul>
+<li class="lvl3"><a href="#四个-dataset-一览">4.1 四个 Dataset 一览</a></li>
+<li class="lvl3"><a href="#预训练最简单的标签">4.2 预训练：最简单的标签</a></li>
+<li class="lvl3"><a href="#sft只对-assistant-的回答算损失">4.3 SFT：只对 assistant 的回答算损失</a></li>
+<li class="lvl3"><a href="#两个对话增强技巧">4.4 两个对话增强技巧</a></li>
+<li class="lvl3"><a href="#dpo-数据一条样本拆成两路">4.5 DPO 数据：一条样本拆成两路</a></li>
+<li class="lvl3"><a href="#rl-数据只要-prompt">4.6 RL 数据：只要 prompt</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-5-章-训练脚本的统一骨架">第 5 章 训练脚本的统一骨架</a>
+<ul>
+<li class="lvl3"><a href="#学习率余弦-10-地板">5.1 学习率：余弦 + 10% 地板</a></li>
+<li class="lvl3"><a href="#断点续训两个文件一个换算">5.2 断点续训：两个文件、一个换算</a></li>
+<li class="lvl3"><a href="#三个平台适配点">5.3 三个平台适配点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-6-章-八个训练阶段逐个拆">第 6 章 八个训练阶段逐个拆</a>
+<ul>
+<li class="lvl3"><a href="#阶段总览">6.1 阶段总览</a></li>
+<li class="lvl3"><a href="#预训练学词语接龙">6.2 预训练：学词语接龙</a></li>
+<li class="lvl3"><a href="#sft学怎么回答">6.3 SFT：学「怎么回答」</a></li>
+<li class="lvl3"><a href="#lora70-行手写实现">6.4 LoRA：70 行手写实现</a></li>
+<li class="lvl3"><a href="#蒸馏学生模仿老师的完整分布">6.5 蒸馏：学生模仿老师的完整分布</a></li>
+<li class="lvl3"><a href="#dpo不用奖励模型的偏好对齐">6.6 DPO：不用奖励模型的偏好对齐</a></li>
+<li class="lvl3"><a href="#ppo四个模型一起转">6.7 PPO：四个模型一起转</a></li>
+<li class="lvl3"><a href="#grpo去掉-critic-的-ppo">6.8 GRPO：去掉 critic 的 PPO</a></li>
+<li class="lvl3"><a href="#rollout-抽象同一套算法两种后端">6.9 rollout 抽象：同一套算法，两种后端</a></li>
+<li class="lvl3"><a href="#agentic-rl多轮工具调用">6.10 Agentic RL：多轮工具调用</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-7-章-推理转换与部署">第 7 章 推理、转换与部署</a>
+<ul>
+<li class="lvl3"><a href="#两种加载方式">7.1 两种加载方式</a></li>
+<li class="lvl3"><a href="#对话推理的三个关键调用">7.2 对话推理的三个关键调用</a></li>
+<li class="lvl3"><a href="#权重转换两个方向">7.3 权重转换：两个方向</a></li>
+<li class="lvl3"><a href="#服务化">7.4 服务化</a></li>
+<li class="lvl3"><a href="#第三方生态">7.5 第三方生态</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-8-章-值得学的设计取舍与四个坑">第 8 章 值得学的设计取舍与四个坑</a>
+<ul>
+<li class="lvl3"><a href="#为什么是8-层-768-宽而不是4-层-1024">8.1 为什么是「8 层 × 768 宽」，而不是「4 层 × 1024」</a></li>
+<li class="lvl3"><a href="#词表-6400-的取舍">8.2 词表 6400 的取舍</a></li>
+<li class="lvl3"><a href="#四个真实的坑">8.3 四个真实的坑</a></li>
+<li class="lvl3"><a href="#文档与代码的一处不一致">8.4 文档与代码的一处不一致</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-9-章-局限与常见误读">第 9 章 局限与常见误读</a>
+<ul>
+<li class="lvl3"><a href="#能力边界64m-能做什么">9.1 能力边界：64M 能做什么</a></li>
+<li class="lvl3"><a href="#四个常见误读">9.2 四个常见误读</a></li>
+<li class="lvl3"><a href="#工程上的简化">9.3 工程上的简化</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-10-章-在-4gb-显卡上能跑到什么程度">第 10 章 在 4GB 显卡上能跑到什么程度</a>
+<ul>
+<li class="lvl3"><a href="#模型本身完全放得下">10.1 模型本身：完全放得下</a></li>
+<li class="lvl3"><a href="#训练时间估算">10.2 训练时间估算</a></li>
+<li class="lvl3"><a href="#两个需要注意的点">10.3 两个需要注意的点</a></li>
+<li class="lvl3"><a href="#建议的上手路径">10.4 建议的上手路径</a></li>
+</ul></li>
+<li class="lvl2"><a href="#第-11-章-自测问答">第 11 章 自测问答</a>
+<ul>
+<li class="lvl3"><a href="#一模型结构">一、模型结构</a></li>
+<li class="lvl3"><a href="#二数据">二、数据</a></li>
+<li class="lvl3"><a href="#三训练">三、训练</a></li>
+<li class="lvl3"><a href="#参考答案要点">参考答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#附录-a-训练超参速查">附录 A 训练超参速查</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#附录-b-术语中英对照">附录 B 术语中英对照</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#附录-c-一句话记住每个文件">附录 C 一句话记住每个文件</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#结语">结语</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="minimind-源码解读3-块钱从零训练一个自己的-llm" class="level1">
+<h1>MiniMind 源码解读：3 块钱，从零训练一个自己的 LLM</h1>
+<blockquote>
+<p><strong>解读对象</strong>：<code>minimind-master</code>（jingyaogong/minimind，minimind-3 版本） <strong>解读环境</strong>：本机 conda <code>swift_env</code>（Python 3.10 / torch 2.6.0+cu124 / transformers 4.57.6） <strong>验证方式</strong>：模型代码已在本机实际加载运行，本文「实测」数字均来自本机。</p>
+</blockquote>
+<hr />
+<section id="先看结论这个项目到底是什么" class="level2">
+<h2>先看结论：这个项目到底是什么</h2>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>维度</th>
+<th>事实</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>定位</td>
+<td>教学向的「从零手写 LLM」项目，<strong>不依赖</strong> trl / peft / deepspeed 的训练封装</td>
+</tr>
+<tr class="even">
+<td>模型</td>
+<td>Decoder-only Transformer，结构对齐 Qwen3 生态</td>
+</tr>
+<tr class="odd">
+<td>规模</td>
+<td>Dense <strong>63.91M</strong>（实测）；MoE <strong>198.42M</strong>，4 experts / top-1</td>
+</tr>
+<tr class="even">
+<td>词表</td>
+<td>6400（自训 BPE + ByteLevel，36 个特殊 token）</td>
+</tr>
+<tr class="odd">
+<td>结构</td>
+<td>8 层 / d_model 768 / 8 Q 头 / 4 KV 头（GQA）/ FFN 2432 / RoPE θ=1e6</td>
+</tr>
+<tr class="even">
+<td>训练链</td>
+<td>Tokenizer → Pretrain → SFT → LoRA → 蒸馏 → DPO → PPO → GRPO/CISPO → Agentic RL</td>
+</tr>
+<tr class="odd">
+<td>成本</td>
+<td>单卡 3090：pretrain 1.21h（¥1.57）+ SFT 1.10h（¥1.43）≈ <strong>2.3 小时、3 元</strong></td>
+</tr>
+<tr class="even">
+<td>部署</td>
+<td>原生权重 → HF 格式 → llama.cpp / vLLM / ollama；自带 OpenAI 兼容 API 与 WebUI</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一句话</strong>：它把「一个大模型公司内部做的事」压缩到一个你一夜能读完、几小时能跑完的规模， 而且每一行都是可读的 PyTorch。</p>
+<blockquote>
+<p>口诀：<strong>结构对齐 Qwen3，代码不靠框架；数据一条 jsonl，训练一张 3090。</strong></p>
+</blockquote>
+<hr />
+</section>
+<section id="这本书怎么读" class="level2">
+<h2>这本书怎么读</h2>
+<p>按「先看骨架、再看血肉、最后看取舍」三遍：</p>
+<ol type="1">
+<li><strong>第一遍（30 分钟）</strong>：读本文第 2 章的代码地图 + 第 5 章的训练骨架，把「一个训练脚本由哪九块组成」记住。</li>
+<li><strong>第二遍（2 小时）</strong>：读第 3、4 章，对照源码逐行看模型和数据。</li>
+<li><strong>第三遍（按需）</strong>：读第 6 章各训练阶段，挑你关心的算法（SFT / DPO / GRPO）精读。</li>
+</ol>
+<hr />
+</section>
+<section id="第-1-章-项目定位与版本演进" class="level2">
+<h2>第 1 章 项目定位与版本演进</h2>
+<section id="它反对什么" class="level3">
+<h3>1.1 它反对什么</h3>
+<p>README 里有一段很直白的话，值得原文理解：</p>
+<blockquote>
+<p>第三方框架（transformers / trl / peft）只用十几行就能跑完「加载模型 + 数据 + 推理 + 强化学习」， 效率很高，但<strong>把开发者和底层实现隔离开了</strong>。</p>
+</blockquote>
+<p>MiniMind 的选择是：<strong>把框架里的东西自己写一遍</strong>。所以你在项目里会看到：</p>
+<table>
+<thead>
+<tr class="header">
+<th>别处用框架</th>
+<th>这里自己写</th>
+<th>文件</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>peft</code> 的 LoRA</td>
+<td>70 行手写 LoRA + monkey-patch</td>
+<td><code>model/model_lora.py</code></td>
+</tr>
+<tr class="even">
+<td><code>trl</code> 的 DPOTrainer</td>
+<td>原生 DPO loss + 双模型前向</td>
+<td><code>trainer/train_dpo.py</code></td>
+</tr>
+<tr class="odd">
+<td><code>trl</code> 的 GRPOTrainer</td>
+<td>原生 GRPO/CISPO + rollout 抽象</td>
+<td><code>trainer/train_grpo.py</code></td>
+</tr>
+<tr class="even">
+<td><code>transformers</code> 的 <code>generate</code></td>
+<td>手写采样循环</td>
+<td><code>model/model_minimind.py</code></td>
+</tr>
+<tr class="odd">
+<td>第三方 tokenizer</td>
+<td><code>tokenizers</code> 库训练 BPE</td>
+<td><code>trainer/train_tokenizer.py</code></td>
+</tr>
+</tbody>
+</table>
+<p>这既是它最大的价值（可读、可改），也是它最大的局限（性能、工程完备度不如框架）。</p>
+</section>
+<section id="版本演进一条对齐主流生态的路线" class="level3">
+<h3>1.2 版本演进：一条「对齐主流生态」的路线</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>版本</th>
+<th>时间</th>
+<th>规模</th>
+<th>关键变化</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>minimind-v1</td>
+<td>2024-08</td>
+<td>108M</td>
+<td>首版，自定义 tokenizer</td>
+</tr>
+<tr class="even">
+<td>minimind2</td>
+<td>2025-04</td>
+<td>26M / 104M / 145M MoE</td>
+<td>代码重构，对齐 transformers 命名，支持 llama.cpp/vllm</td>
+</tr>
+<tr class="odd">
+<td>minimind-3</td>
+<td>2026-04</td>
+<td>64M / 198M-A64M</td>
+<td><strong>结构、Tokenizer、训练链全面对齐 Qwen3</strong>，移除 shared expert，加入 Agentic RL</td>
+</tr>
+</tbody>
+</table>
+<p>从版本变化能看出一条主线：<strong>模型结构不断向 Qwen3 靠拢</strong>，目的是让权重能直接落到 主流推理生态（llama.cpp、vLLM、ollama）里，而不是困在自己的代码里。</p>
+</section>
+<section id="它适合谁-不适合谁" class="level3">
+<h3>1.3 它适合谁 / 不适合谁</h3>
+<table>
+<thead>
+<tr class="header">
+<th>适合</th>
+<th>不适合</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>想搞懂 LLM 每一层怎么实现的工程师</td>
+<td>想要一个能用的中文助手（64M 的能力有硬上限）</td>
+</tr>
+<tr class="even">
+<td>想复现完整训练链的学生</td>
+<td>想训练 7B 模型的人（这是教学项目）</td>
+</tr>
+<tr class="odd">
+<td>想改架构做实验的研究者</td>
+<td>追求训练吞吐的团队（请用 Megatron/DeepSpeed）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>读它为了「拆黑盒」，用它别指望「干重活」。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-2-章-代码地图与阅读路线" class="level2">
+<h2>第 2 章 代码地图与阅读路线</h2>
+<section id="文件清单按重要度排序" class="level3">
+<h3>2.1 文件清单（按重要度排序）</h3>
+<table>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>行数</th>
+<th>作用</th>
+<th>必读</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>model/model_minimind.py</code></td>
+<td>292</td>
+<td>模型全部结构 + 手写 generate</td>
+<td>⭐⭐⭐</td>
+</tr>
+<tr class="even">
+<td><code>dataset/lm_dataset.py</code></td>
+<td>260</td>
+<td>四种 Dataset + chat 模板处理</td>
+<td>⭐⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/train_pretrain.py</code></td>
+<td>165</td>
+<td>预训练主循环</td>
+<td>⭐⭐⭐</td>
+</tr>
+<tr class="even">
+<td><code>trainer/trainer_utils.py</code></td>
+<td>243</td>
+<td>学习率/断点/分布式/奖励模型/安全求值</td>
+<td>⭐⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/train_full_sft.py</code></td>
+<td>166</td>
+<td>全参数 SFT</td>
+<td>⭐⭐⭐</td>
+</tr>
+<tr class="even">
+<td><code>model/model_lora.py</code></td>
+<td>70</td>
+<td>手写 LoRA（注入/保存/合并）</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/train_dpo.py</code></td>
+<td>220</td>
+<td>DPO 偏好对齐</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="even">
+<td><code>trainer/train_grpo.py</code></td>
+<td>321</td>
+<td>GRPO / CISPO</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/rollout_engine.py</code></td>
+<td>224</td>
+<td>采样引擎抽象（Torch / SGLang）</td>
+<td>⭐⭐</td>
+</tr>
+<tr class="even">
+<td><code>trainer/train_ppo.py</code></td>
+<td>442</td>
+<td>PPO（actor + critic + GAE）</td>
+<td>⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/train_agent.py</code></td>
+<td>484</td>
+<td>多轮工具调用 RL</td>
+<td>⭐</td>
+</tr>
+<tr class="even">
+<td><code>trainer/train_distillation.py</code></td>
+<td>242</td>
+<td>白盒蒸馏（KL + CE）</td>
+<td>⭐</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/train_lora.py</code></td>
+<td>180</td>
+<td>LoRA 训练入口</td>
+<td>⭐</td>
+</tr>
+<tr class="even">
+<td><code>eval_llm.py</code></td>
+<td>99</td>
+<td>CLI 推理</td>
+<td>⭐</td>
+</tr>
+<tr class="odd">
+<td><code>scripts/convert_model.py</code></td>
+<td>144</td>
+<td>原生权重 → HF / Qwen3 兼容格式</td>
+<td>⭐</td>
+</tr>
+<tr class="even">
+<td><code>scripts/serve_openai_api.py</code></td>
+<td>277</td>
+<td>OpenAI 兼容 API 服务</td>
+<td>按需</td>
+</tr>
+<tr class="odd">
+<td><code>scripts/web_demo.py</code></td>
+<td>425</td>
+<td>Streamlit 聊天界面</td>
+<td>按需</td>
+</tr>
+<tr class="even">
+<td><code>trainer/train_tokenizer.py</code></td>
+<td>189</td>
+<td>训练 BPE 分词器（不建议重训）</td>
+<td>参考</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="推荐阅读顺序" class="level3">
+<h3>2.2 推荐阅读顺序</h3>
+<pre><code>model_minimind.py      ← 先看模型长什么样
+      ↓
+lm_dataset.py          ← 数据怎么变成 (input_ids, labels)
+      ↓
+train_pretrain.py      ← 最简单的训练循环（无 mask、无 ref 模型）
+      ↓
+train_full_sft.py      ← 多了一个 loss mask（只对 assistant 算）
+      ↓
+model_lora.py + train_lora.py   ← 只训一小部分参数
+      ↓
+train_dpo.py           ← 两个模型、偏好对
+      ↓
+train_grpo.py          ← 采样 + 组内优势（RLHF 主线）
+      ↓
+train_ppo.py / train_agent.py   ← 最复杂，最后看</code></pre>
+<p><strong>阅读技巧</strong>：这些训练脚本有 80% 的代码是一样的（第 5 章的九步骨架）， 所以第 2 个脚本以后，只需要盯「损失函数怎么算」那十几行。</p>
+</section>
+<section id="项目的目录约定" class="level3">
+<h3>2.3 项目的目录约定</h3>
+<table>
+<thead>
+<tr class="header">
+<th>目录</th>
+<th>内容</th>
+<th>是否入库</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>model/</code></td>
+<td>模型代码 + 官方 tokenizer 文件（tokenizer.json 等）</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td><code>dataset/</code></td>
+<td>数据加载代码（<code>lm_dataset.py</code>），数据文件需自行下载</td>
+<td>代码✅ 数据❌</td>
+</tr>
+<tr class="odd">
+<td><code>trainer/</code></td>
+<td>全部训练脚本</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td><code>scripts/</code></td>
+<td>转换、API、WebUI、工具评测</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td><code>out/</code></td>
+<td>训练产出的 <code>.pth</code> 权重</td>
+<td>❌</td>
+</tr>
+<tr class="even">
+<td><code>checkpoints/</code></td>
+<td>断点续训文件</td>
+<td>❌</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意</strong>：训练脚本里的相对路径都假设你在 <code>trainer/</code> 目录下执行（README 明确写了 「所有训练脚本均 <code>cd ./trainer</code> 目录执行」），否则 <code>../out</code> 会指错地方。</p>
+<blockquote>
+<p>口诀：<strong>模型 → 数据 → 预训练 → SFT → 后训练；骨架九成相同，只看损失那几行。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-3-章-模型结构逐层拆解" class="level2">
+<h2>第 3 章 模型结构逐层拆解</h2>
+<section id="config默认值就是全部设计" class="level3">
+<h3>3.1 Config：默认值就是全部设计</h3>
+<p><code>MiniMindConfig</code>（<code>model/model_minimind.py:10</code>）的默认值：</p>
+<table>
+<thead>
+<tr class="header">
+<th>字段</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>hidden_size</code></td>
+<td>768</td>
+<td>主干宽度</td>
+</tr>
+<tr class="even">
+<td><code>num_hidden_layers</code></td>
+<td>8</td>
+<td>层数（<strong>浅而宽</strong>，见第 8 章）</td>
+</tr>
+<tr class="odd">
+<td><code>vocab_size</code></td>
+<td>6400</td>
+<td>自训 BPE 词表</td>
+</tr>
+<tr class="even">
+<td><code>num_attention_heads</code></td>
+<td>8</td>
+<td>Q 头</td>
+</tr>
+<tr class="odd">
+<td><code>num_key_value_heads</code></td>
+<td>4</td>
+<td>KV 头 → <strong>GQA，2 个 Q 头共享 1 组 KV</strong></td>
+</tr>
+<tr class="even">
+<td><code>head_dim</code></td>
+<td>96</td>
+<td>= 768 / 8</td>
+</tr>
+<tr class="odd">
+<td><code>intermediate_size</code></td>
+<td><strong>2432</strong></td>
+<td><code>ceil(768×π/64)×64</code>，不是常见的 4 倍</td>
+</tr>
+<tr class="even">
+<td><code>max_position_embeddings</code></td>
+<td>32768</td>
+<td>支持 YaRN 外推</td>
+</tr>
+<tr class="odd">
+<td><code>rope_theta</code></td>
+<td>1e6</td>
+<td>大底数，长文本友好</td>
+</tr>
+<tr class="even">
+<td><code>tie_word_embeddings</code></td>
+<td>True</td>
+<td>输入 Embedding 与输出 lm_head 共享</td>
+</tr>
+<tr class="odd">
+<td><code>rms_norm_eps</code></td>
+<td>1e-6</td>
+<td></td>
+</tr>
+<tr class="even">
+<td>MoE：<code>num_experts</code> / <code>num_experts_per_tok</code></td>
+<td>4 / 1</td>
+<td>4 个专家，每个 token 只走 1 个</td>
+</tr>
+<tr class="odd">
+<td><code>router_aux_loss_coef</code></td>
+<td>5e-4</td>
+<td>负载均衡损失系数</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一个容易忽略的细节</strong>：<code>intermediate_size</code> 用 <code>π/64</code> 取整，是为了让 FFN 宽度 接近 <code>8/3 × d_model</code>（SwiGLU 的标准比例，因为有三个矩阵而不是两个）， 同时保证能被 64 整除，对齐硬件。</p>
+</section>
+<section id="rmsnorm为什么先转-float" class="level3">
+<h3>3.2 RMSNorm：为什么先转 float</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> forward(<span class="va">self</span>, x):</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (<span class="va">self</span>.weight <span class="op">*</span> <span class="va">self</span>.norm(x.<span class="bu">float</span>())).type_as(x)</span></code></pre></div>
+<p>归一化在 <strong>float32</strong> 上算，再转回原精度。这是低精度训练（bf16/fp16）下的常见稳手： 方差计算在 fp16 下容易溢出或精度不足。</p>
+</section>
+<section id="rope-yarn位置编码怎么外推" class="level3">
+<h3>3.3 RoPE + YaRN：位置编码怎么外推</h3>
+<p><code>precompute_freqs_cis</code>（<code>:62</code>）做了三件事：</p>
+<ol type="1">
+<li>按 <code>rope_theta=1e6</code> 生成基础频率；</li>
+<li>如果开了 <code>inference_rope_scaling</code>，用 <strong>YaRN</strong> 的线性斜坡对频率做插值： <code>f' = f × (1 - γ + γ/factor)</code>，γ 由 <code>beta_fast/beta_slow</code> 决定哪些维度被缩放；</li>
+<li>预计算 <code>cos/sin</code> 并注册为 <strong>非持久 buffer</strong>（不进 state_dict，省权重体积）。</li>
+</ol>
+<p><strong>为什么需要 YaRN</strong>：模型只在 32768 长度内训练过，直接推理到 10 万 token 会崩。 YaRN 用插值 + 注意力温度补偿（<code>attention_factor</code>）把频率压缩到训练分布内， 属于「不改权重、只改位置编码」的低成本外推。</p>
+</section>
+<section id="attentionqwen3-味的三个细节" class="level3">
+<h3>3.4 Attention：Qwen3 味的三个细节</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.q_proj <span class="op">=</span> nn.Linear(hidden, heads <span class="op">*</span> head_dim, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.k_proj <span class="op">=</span> nn.Linear(hidden, kv_heads <span class="op">*</span> head_dim, bias<span class="op">=</span><span class="va">False</span>)   <span class="co"># 只有 4 个头</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.q_norm <span class="op">=</span> RMSNorm(head_dim)   <span class="co"># ← 对每个头单独归一化</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="va">self</span>.k_norm <span class="op">=</span> RMSNorm(head_dim)</span></code></pre></div>
+<p>三个与现代 LLM 一致的细节：</p>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>GQA</strong>（8 Q / 4 KV）</td>
+<td>KV cache 直接减半，推理更省显存</td>
+</tr>
+<tr class="even">
+<td><strong>q_norm / k_norm</strong></td>
+<td>对 head_dim 做 RMSNorm（Qwen3 同款），大学习率下更稳</td>
+</tr>
+<tr class="odd">
+<td><strong>bias=False</strong></td>
+<td>所有线性层无偏置，与主流一致</td>
+</tr>
+</tbody>
+</table>
+<p>前向里的关键分支：</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">self</span>.flash <span class="kw">and</span> (seq_len <span class="op">&gt;</span> <span class="dv">1</span>) <span class="kw">and</span> (<span class="kw">not</span> <span class="va">self</span>.is_causal <span class="kw">or</span> past_key_value <span class="kw">is</span> <span class="va">None</span>) <span class="kw">and</span> 掩码全为<span class="dv">1</span>:</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    F.scaled_dot_product_attention(...)        <span class="co"># 快路径（PyTorch 自带融合）</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="cf">else</span>:</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    scores <span class="op">=</span> q <span class="op">@</span> k.T <span class="op">/</span> sqrt(d)                 <span class="co"># 手写路径，支持 KV cache + padding mask</span></span></code></pre></div>
+<p><strong>为什么有两条路径</strong>：SDPA 快，但不能同时处理「带 KV cache 的自回归 + 变长 padding」。 所以生成过程中（<code>past_key_value</code> 存在）会走手写路径，训练/首轮前向走 SDPA。</p>
+<blockquote>
+<p>这里也是本项目唯一一处「为性能妥协」的地方——其余全部是可读的原生实现。</p>
+</blockquote>
+</section>
+<section id="ffnswiglu" class="level3">
+<h3>3.5 FFN：SwiGLU</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> <span class="va">self</span>.down_proj(<span class="va">self</span>.act_fn(<span class="va">self</span>.gate_proj(x)) <span class="op">*</span> <span class="va">self</span>.up_proj(x))</span></code></pre></div>
+<p>三个矩阵（gate / up / down），门控机制。参数量是普通 FFN 的 1.5 倍， 所以 <code>intermediate_size</code> 用 8/3 而不是 4 倍来平衡。</p>
+</section>
+<section id="blockpre-norm-残差" class="level3">
+<h3>3.6 Block：Pre-Norm 残差</h3>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>hidden <span class="op">=</span> hidden <span class="op">+</span> <span class="va">self</span>.self_attn(<span class="va">self</span>.input_layernorm(hidden), ...)   <span class="co"># 注意力</span></span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>hidden <span class="op">=</span> hidden <span class="op">+</span> <span class="va">self</span>.mlp(<span class="va">self</span>.post_attention_layernorm(hidden))     <span class="co"># FFN</span></span></code></pre></div>
+<p>先归一化再进子层，残差直连。比 Post-Norm 更容易训深，是现代标准做法。</p>
+</section>
+<section id="moe-层项目里最有想法的一段" class="level3">
+<h3>3.7 MoE 层：项目里最「有想法」的一段</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>scores <span class="op">=</span> softmax(gate(x))                       <span class="co"># 每个 token 对 4 个专家的分数</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>topk_weight, topk_idx <span class="op">=</span> topk(scores, k<span class="op">=</span><span class="dv">1</span>)       <span class="co"># 每个 token 只选 1 个专家</span></span></code></pre></div>
+<p>三个值得注意的实现细节：</p>
+<p><strong>① k=1 时的直通梯度（straight-through）</strong></p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>top1 <span class="op">=</span> topk(softmax(gate(x.detach())), <span class="dv">1</span>)[<span class="dv">0</span>]</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>topk_weight <span class="op">=</span> top1 <span class="op">-</span> top1.detach() <span class="op">+</span> <span class="fl">1.0</span></span></code></pre></div>
+<p>前向值是 1.0（等价于直接用专家输出），反向时梯度却流向 gate—— 让路由器在 k=1 时也能被训练。否则「选谁」是不可导的离散操作。</p>
+<p><strong>② 负载均衡辅助损失</strong></p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>load <span class="op">=</span> one_hot(topk_idx, num_experts).mean(<span class="dv">0</span>)   <span class="co"># 各专家实际接了多少 token</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>aux_loss <span class="op">=</span> (load <span class="op">*</span> scores.mean(<span class="dv">0</span>)).<span class="bu">sum</span>() <span class="op">*</span> num_experts <span class="op">*</span> coef</span></code></pre></div>
+<p>惩罚「所有 token 都挤向同一个专家」，否则专家会退化成一个，MoE 白搭。</p>
+<p><strong>③ DDP 下的空专家技巧</strong></p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="cf">elif</span> <span class="va">self</span>.training:</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    y[<span class="dv">0</span>, <span class="dv">0</span>] <span class="op">+=</span> <span class="dv">0</span> <span class="op">*</span> <span class="bu">sum</span>(p.<span class="bu">sum</span>() <span class="cf">for</span> p <span class="kw">in</span> expert.parameters())</span></code></pre></div>
+<p>某个专家这一批没接到 token 时，加一个「值为 0 但依赖参数」的项， 避免 DDP 因为「有参数没参与计算」而卡死在同步上。这是分布式训练里的实战经验。</p>
+<p><strong>MoE 的代价</strong>：README 自己也说了，原生实现下 token 要按专家分桶再分别 forward， kernel 启停开销大，4 专家 top-1 大约比同尺寸 Dense 慢 50%。要快得靠 DeepSpeed-MoE / Megatron / Triton 融合算子——但那会牺牲「可读性」。</p>
+</section>
+<section id="forcausallm三个工程点" class="level3">
+<h3>3.8 ForCausalLM：三个工程点</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="va">self</span>.config.tie_word_embeddings:</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>    <span class="va">self</span>.model.embed_tokens.weight <span class="op">=</span> <span class="va">self</span>.lm_head.weight   <span class="co"># 共享同一块内存</span></span></code></pre></div>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>工程点</th>
+<th>代码</th>
+<th>为什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>权重共享</td>
+<td><code>embed_tokens.weight = lm_head.weight</code></td>
+<td>6400×768 ≈ 4.9M 参数，省掉就是省 7.7% 总参数</td>
+</tr>
+<tr class="even">
+<td>损失错位</td>
+<td><code>logits[..., :-1, :]</code> vs <code>labels[..., 1:]</code></td>
+<td>标准 next-token 预测</td>
+</tr>
+<tr class="odd">
+<td><code>logits_to_keep</code></td>
+<td>只算最后 N 个位置的 logits</td>
+<td>生成时省大量显存与计算（RL 里每步都生成，收益明显）</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="手写的-generate一个完整的采样器" class="level3">
+<h3>3.9 手写的 generate：一个完整的采样器</h3>
+<p><code>generate</code>（<code>:261</code>）没有用 <code>GenerationMixin</code> 的默认实现，而是自己写了循环，包含：</p>
+<table>
+<thead>
+<tr class="header">
+<th>功能</th>
+<th>实现要点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>KV cache</td>
+<td>每步只喂 <code>input_ids[:, past_len:]</code>，复用 <code>past_key_values</code></td>
+</tr>
+<tr class="even">
+<td>temperature</td>
+<td><code>logits / temperature</code></td>
+</tr>
+<tr class="odd">
+<td>top-k</td>
+<td>把低于第 k 名的分数置 <code>-inf</code></td>
+</tr>
+<tr class="even">
+<td>top-p（核采样）</td>
+<td>排序 → 累积概率超过 p 的置 <code>-inf</code>（用 <code>scatter</code> 还原到原顺序）</td>
+</tr>
+<tr class="odd">
+<td>repetition penalty</td>
+<td>对已出现 token：正分数除以系数，负分数乘系数</td>
+</tr>
+<tr class="even">
+<td>提前结束</td>
+<td>记录 <code>finished</code>，全部到 EOS 就 break</td>
+</tr>
+<tr class="odd">
+<td>流式</td>
+<td><code>streamer.put(...)</code> 逐 token 回调</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么值得读</strong>：这是「一次自回归生成到底发生了什么」最干净的参考实现， 比读 transformers 的 <code>generate</code>（几千行、几十个可选参数）容易得多。</p>
+</section>
+<section id="实测模型在你机器上的样子" class="level3">
+<h3>3.10 实测：模型在你机器上的样子</h3>
+<p>我在 <code>swift_env</code> 里实例化并前向了一次（随机权重）：</p>
+<pre><code>[Dense] params=63.91M  vocab=6400 layers=8 dim=768 head_dim=96 kv_heads=4 ffn=2432
+  forward: input (2, 32) -&gt; logits (2, 32, 6400), aux_loss=0.0000
+  loss(labels=ids, 随机权重): 8.873  (ln(vocab)=8.764)
+
+[MoE(4 experts/top-1)] params=198.42M
+  forward: input (2, 32) -&gt; logits (2, 32, 6400)
+  loss(labels=ids, 随机权重): 8.977
+
+GPU(fp16) 生成 32 tokens: 2297 ms (13.9 tok/s), 峰值 144 MB</code></pre>
+<p><strong>怎么读这组数</strong>：</p>
+<ol type="1">
+<li><strong>63.91M</strong> 与 README 的 64M 对得上；MoE 总参 198M，但每 token 只激活约 64M。</li>
+<li><strong>随机权重下 loss ≈ ln(6400) = 8.76</strong>，这是「均匀猜」的基准线。实测 8.87 略高， 符合未训练模型的预期——<strong>这个数字也是判断训练是否真的开始了的第一标尺</strong>。</li>
+<li>GPU 生成 13.9 tok/s、144MB 峰值：64M 模型在你的 GTX 1650 上完全跑得动。</li>
+</ol>
+</section>
+<section id="与-qwen3-的结构对应" class="level3">
+<h3>3.11 与 Qwen3 的结构对应</h3>
+<table>
+<thead>
+<tr class="header">
+<th>组件</th>
+<th>MiniMind-3</th>
+<th>Qwen3（8B 级）</th>
+<th>是否一致</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>归一化</td>
+<td>RMSNorm（pre-norm）</td>
+<td>同</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>位置编码</td>
+<td>RoPE + YaRN</td>
+<td>同</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>QK-Norm</td>
+<td>有（head_dim 上）</td>
+<td>有</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>注意力</td>
+<td>GQA</td>
+<td>GQA</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>FFN</td>
+<td>SwiGLU</td>
+<td>SwiGLU</td>
+<td>✅</td>
+</tr>
+<tr class="even">
+<td>偏置</td>
+<td>全无</td>
+<td>全无</td>
+<td>✅</td>
+</tr>
+<tr class="odd">
+<td>MoE</td>
+<td>4 experts / top-1，无 shared</td>
+<td>128 experts / top-8，无 shared</td>
+<td>结构同型、规模不同</td>
+</tr>
+</tbody>
+</table>
+<p>正因如此，<code>scripts/convert_model.py</code> 里才能直接把权重映射成 <code>Qwen3Config / Qwen3ForCausalLM</code> 的格式。</p>
+<blockquote>
+<p>口诀：<strong>RMSNorm 打底，RoPE 定位置；QK 归一化，GQA 省缓存；SwiGLU 三矩阵，MoE 四选一。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-4-章-数据管线一条-jsonl-走完全流程" class="level2">
+<h2>第 4 章 数据管线：一条 jsonl 走完全流程</h2>
+<section id="四个-dataset-一览" class="level3">
+<h3>4.1 四个 Dataset 一览</h3>
+<table>
+<colgroup>
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+<col style="width: 25%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Dataset</th>
+<th>输入格式</th>
+<th>返回</th>
+<th>用在哪</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>PretrainDataset</code></td>
+<td><code>{"text": "..."}</code></td>
+<td><code>(input_ids, labels)</code></td>
+<td>预训练</td>
+</tr>
+<tr class="even">
+<td><code>SFTDataset</code></td>
+<td><code>{"conversations": [...]}</code></td>
+<td><code>(input_ids, labels)</code></td>
+<td>全参 SFT、LoRA、蒸馏</td>
+</tr>
+<tr class="odd">
+<td><code>DPODataset</code></td>
+<td><code>{"chosen": [...], "rejected": [...]}</code></td>
+<td>6 个张量（chosen/rejected 各 3）</td>
+<td>DPO</td>
+</tr>
+<tr class="even">
+<td><code>RLAIFDataset</code></td>
+<td><code>{"conversations": [...]}</code></td>
+<td><code>{"prompt": str}</code>（只要问题）</td>
+<td>PPO / GRPO</td>
+</tr>
+<tr class="odd">
+<td><code>AgentRLDataset</code></td>
+<td><code>{"conversations": [...], "gt": [...]}</code></td>
+<td><code>{"messages", "tools", "gt"}</code></td>
+<td>Agentic RL</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="预训练最简单的标签" class="level3">
+<h3>4.2 预训练：最简单的标签</h3>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>tokens <span class="op">=</span> [BOS] <span class="op">+</span> tokenize(text) <span class="op">+</span> [EOS]</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>input_ids <span class="op">=</span> tokens <span class="op">+</span> [PAD] <span class="op">*</span> (max_length <span class="op">-</span> <span class="bu">len</span>(tokens))</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>labels <span class="op">=</span> input_ids.clone()</span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>labels[input_ids <span class="op">==</span> PAD] <span class="op">=</span> <span class="op">-</span><span class="dv">100</span>        <span class="co"># ← 关键：padding 不参与损失</span></span></code></pre></div>
+<p><strong>为什么 <code>-100</code></strong>：这是 PyTorch <code>cross_entropy</code> 的默认 <code>ignore_index</code>。 预训练时模型要学「整段文本的下一个词」，但补齐的 pad 位置没有意义， 必须排除，否则模型会学着「预测 padding」。</p>
+</section>
+<section id="sft只对-assistant-的回答算损失" class="level3">
+<h3>4.3 SFT：只对 assistant 的回答算损失</h3>
+<p>这是全项目最值得逐行读的数据处理。<code>SFTDataset.generate_labels</code>（<code>dataset/lm_dataset.py:91</code>）：</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>bos_id <span class="op">=</span> tokenize(<span class="st">&quot;&lt;|im_start|&gt;assistant</span><span class="ch">\n</span><span class="st">&quot;</span>)     <span class="co"># 回答开始</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>eos_id <span class="op">=</span> tokenize(<span class="st">&quot;&lt;|im_end|&gt;</span><span class="ch">\n</span><span class="st">&quot;</span>)                <span class="co"># 回答结束</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>i <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="cf">while</span> i <span class="op">&lt;</span> <span class="bu">len</span>(input_ids):</span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> input_ids[i:i<span class="op">+</span><span class="bu">len</span>(bos_id)] <span class="op">==</span> bos_id:     <span class="co"># 找到 assistant 回合</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>        ... 把从 start 到 eos 之间的位置都标成 input_ids[j]</span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">else</span>:</span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>        i <span class="op">+=</span> <span class="dv">1</span></span></code></pre></div>
+<p>结果：labels 里<strong>只有 assistant 说的内容是真值，其它（system/user/模板标记）全是 -100</strong>。</p>
+<p><strong>为什么必须这样做</strong>：如果对整段都算损失，模型会同时学习「如何生成用户的问题」， 既浪费容量，又会让模型在推理时倾向于自问自答。</p>
+<table>
+<thead>
+<tr class="header">
+<th>做法</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>全序列算 loss</td>
+<td>模型学「复述用户提问」，对话能力差</td>
+</tr>
+<tr class="even">
+<td>只算 assistant 片段</td>
+<td>模型专注学「如何回答」✅</td>
+</tr>
+</tbody>
+</table>
+<p><strong>实现上的取舍</strong>：这里用「token 序列扫描」而不是「按 role 逐条拼接」， 好处是自动适配 chat template 的任何格式；代价是依赖模板里 assistant 标记的唯一性。</p>
+</section>
+<section id="两个对话增强技巧" class="level3">
+<h3>4.4 两个对话增强技巧</h3>
+<p><strong>① 概率性注入 system prompt</strong>（<code>pre_processing_chat</code>）</p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> conversations[<span class="dv">0</span>][<span class="st">&#39;role&#39;</span>] <span class="op">!=</span> <span class="st">&#39;system&#39;</span> <span class="kw">and</span> random.random() <span class="op">&lt;</span> <span class="fl">0.2</span>:</span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>    插入一条随机 system prompt（<span class="dv">10</span> 条候选之一）</span></code></pre></div>
+<p>让模型既见过「有 system」也见过「没有 system」的输入，推理时加不加系统提示都能工作。</p>
+<p><strong>② 概率性移除空思考块</strong>（<code>post_processing_chat</code>）</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> prompt.replace(<span class="st">&#39;&lt;think&gt;</span><span class="ch">\n\n</span><span class="st">&lt;/think&gt;</span><span class="ch">\n\n</span><span class="st">&#39;</span>, <span class="st">&#39;&#39;</span>)   <span class="co"># 80% 概率移除</span></span></code></pre></div>
+<p>这是为 minimind-3 的「自适应思考」服务：模型要学会<strong>有时思考、有时不思考</strong>。 如果训练数据里每条回答都带空 <code>&lt;think&gt;&lt;/think&gt;</code>，模型会永远输出空思考标签。</p>
+</section>
+<section id="dpo-数据一条样本拆成两路" class="level3">
+<h3>4.5 DPO 数据：一条样本拆成两路</h3>
+<div class="sourceCode" id="cb17"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>x_chosen, y_chosen, mask_chosen       <span class="op">=</span> ids[:<span class="op">-</span><span class="dv">1</span>], ids[<span class="dv">1</span>:], mask[<span class="dv">1</span>:]</span>
+<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>x_rejected, y_rejected, mask_rejected <span class="op">=</span> ids[:<span class="op">-</span><span class="dv">1</span>], ids[<span class="dv">1</span>:], mask[<span class="dv">1</span>:]</span></code></pre></div>
+<p><strong>注意 <code>[:-1]</code> / <code>[1:]</code></strong>：模型内部已经做了错位（<code>logits[:-1]</code> 对 <code>labels[1:]</code>）， 这里数据集再错一次，是为了让 <code>logits_to_log_probs(logits, y)</code> 能直接按位置 gather。 两者配合，最终对齐是「输入 t 位置 → 预测 t+1」。</p>
+<p>mask 同样只覆盖 assistant 片段，DPO 只比较「两种回答在回答部分」的概率。</p>
+</section>
+<section id="rl-数据只要-prompt" class="level3">
+<h3>4.6 RL 数据：只要 prompt</h3>
+<div class="sourceCode" id="cb18"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> RLAIFDataset:</span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> create_chat_prompt(<span class="va">self</span>, conversations):</span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>        use_thinking <span class="op">=</span> random.random() <span class="op">&lt;</span> <span class="va">self</span>.thinking_ratio   <span class="co"># 50% 开启思考</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> tokenizer.apply_chat_template(conversations[:<span class="op">-</span><span class="dv">1</span>], ...,</span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>                                             open_thinking<span class="op">=</span>use_thinking,</span>
+<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>                                             add_generation_prompt<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<ul>
+<li>丢掉最后一条 assistant 回答（<code>[:-1]</code>），只留问题；</li>
+<li>随机决定这次要不要「开启思考」——让模型在 RL 中同时被评估两种模式。</li>
+</ul>
+<blockquote>
+<p>口诀：<strong>预训练整段算，SFT 只算回答；DPO 拆两路，RL 只喂问题。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-5-章-训练脚本的统一骨架" class="level2">
+<h2>第 5 章 训练脚本的统一骨架</h2>
+<p>打开任意一个 <code>train_*.py</code>，结构几乎一模一样，都是九步：</p>
+<div class="sourceCode" id="cb19"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 初始化分布式与随机种子</span></span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>local_rank <span class="op">=</span> init_distributed_mode()</span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>setup_seed(args.seed <span class="op">+</span> rank)</span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 模型配置 + 断点探测</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>lm_config <span class="op">=</span> MiniMindConfig(hidden_size<span class="op">=</span>..., num_hidden_layers<span class="op">=</span>..., use_moe<span class="op">=</span>...)</span>
+<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>ckp_data <span class="op">=</span> lm_checkpoint(...) <span class="cf">if</span> args.from_resume <span class="op">==</span> <span class="dv">1</span> <span class="cf">else</span> <span class="va">None</span></span>
+<span id="cb19-8"><a href="#cb19-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-9"><a href="#cb19-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 混合精度</span></span>
+<span id="cb19-10"><a href="#cb19-10" aria-hidden="true" tabindex="-1"></a>autocast_ctx <span class="op">=</span> torch.cuda.amp.autocast(dtype<span class="op">=</span>bfloat16<span class="op">/</span>fp16)</span>
+<span id="cb19-11"><a href="#cb19-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-12"><a href="#cb19-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 日志（swanlab，兼容 wandb API）</span></span>
+<span id="cb19-13"><a href="#cb19-13" aria-hidden="true" tabindex="-1"></a>wandb <span class="op">=</span> <span class="va">None</span></span>
+<span id="cb19-14"><a href="#cb19-14" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> args.use_wandb: <span class="im">import</span> swanlab <span class="im">as</span> wandb</span>
+<span id="cb19-15"><a href="#cb19-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-16"><a href="#cb19-16" aria-hidden="true" tabindex="-1"></a><span class="co"># 5. 模型 / 数据 / 优化器</span></span>
+<span id="cb19-17"><a href="#cb19-17" aria-hidden="true" tabindex="-1"></a>model, tokenizer <span class="op">=</span> init_model(lm_config, args.from_weight)</span>
+<span id="cb19-18"><a href="#cb19-18" aria-hidden="true" tabindex="-1"></a>train_ds <span class="op">=</span> XxxDataset(...)</span>
+<span id="cb19-19"><a href="#cb19-19" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> optim.AdamW(model.parameters(), lr<span class="op">=</span>...)</span>
+<span id="cb19-20"><a href="#cb19-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-21"><a href="#cb19-21" aria-hidden="true" tabindex="-1"></a><span class="co"># 6. 恢复训练状态</span></span>
+<span id="cb19-22"><a href="#cb19-22" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(ckp_data[<span class="st">&#39;model&#39;</span>])<span class="op">;</span> optimizer.load_state_dict(...)</span>
+<span id="cb19-23"><a href="#cb19-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-24"><a href="#cb19-24" aria-hidden="true" tabindex="-1"></a><span class="co"># 7. torch.compile（可选）+ DDP 包装</span></span>
+<span id="cb19-25"><a href="#cb19-25" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> DistributedDataParallel(model, device_ids<span class="op">=</span>[local_rank])</span>
+<span id="cb19-26"><a href="#cb19-26" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-27"><a href="#cb19-27" aria-hidden="true" tabindex="-1"></a><span class="co"># 8. 训练循环（每个 epoch 一个 DataLoader）</span></span>
+<span id="cb19-28"><a href="#cb19-28" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> epoch <span class="kw">in</span> <span class="bu">range</span>(start_epoch, args.epochs):</span>
+<span id="cb19-29"><a href="#cb19-29" aria-hidden="true" tabindex="-1"></a>    train_epoch(epoch, loader, ...)</span>
+<span id="cb19-30"><a href="#cb19-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb19-31"><a href="#cb19-31" aria-hidden="true" tabindex="-1"></a><span class="co"># 9. 清理分布式</span></span>
+<span id="cb19-32"><a href="#cb19-32" aria-hidden="true" tabindex="-1"></a>dist.destroy_process_group()</span></code></pre></div>
+<p><strong>记忆方法</strong>：<strong>种子 → 配置 → 精度 → 日志 → 模型数据 → 断点 → 包装 → 循环 → 收尾</strong>。</p>
+<section id="学习率余弦-10-地板" class="level3">
+<h3>5.1 学习率：余弦 + 10% 地板</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_lr(current_step, total_steps, lr, warmup_ratio<span class="op">=</span><span class="fl">0.0</span>):</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> current_step <span class="op">&lt;</span> warmup: <span class="cf">return</span> lr <span class="op">*</span> (current_step <span class="op">+</span> <span class="dv">1</span>) <span class="op">/</span> warmup</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>    angle <span class="op">=</span> math.pi <span class="op">*</span> (current_step <span class="op">-</span> warmup) <span class="op">/</span> <span class="bu">max</span>(<span class="dv">1</span>, total_steps <span class="op">-</span> warmup)</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> lr <span class="op">*</span> (<span class="fl">0.1</span> <span class="op">+</span> <span class="fl">0.45</span> <span class="op">*</span> (<span class="dv">1</span> <span class="op">+</span> math.cos(angle)))</span></code></pre></div>
+<p><code>0.1 + 0.45×(1+cos)</code> 在 0.1 和 1.0 之间余弦下降——<strong>不是降到 0，而是保留 10%</strong>。 大模型训练常用这种「有地板」的余弦，避免最后阶段学习率太小、梯度噪声主导。</p>
+</section>
+<section id="断点续训两个文件一个换算" class="level3">
+<h3>5.2 断点续训：两个文件、一个换算</h3>
+<div class="sourceCode" id="cb21"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>ckp      <span class="op">=</span> out<span class="op">/</span>xxx_768.pth                  <span class="co"># 只有半精度权重，用于推理</span></span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>resume   <span class="op">=</span> checkpoints<span class="op">/</span>xxx_768_resume.pth   <span class="co"># 权重 + 优化器 + scaler + epoch/step + world_size</span></span></code></pre></div>
+<p><strong>最巧妙的一点</strong>：</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> saved_ws <span class="op">!=</span> current_ws:</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>    ckp_data[<span class="st">&#39;step&#39;</span>] <span class="op">=</span> ckp_data[<span class="st">&#39;step&#39;</span>] <span class="op">*</span> saved_ws <span class="op">//</span> current_ws</span></code></pre></div>
+<p>换卡数续训时自动换算 step（4 卡跑 100 步 ≈ 8 卡跑 50 步）， 再配合 <code>SkipBatchSampler</code> 跳过已训批次。这是很多教学项目没有的工程细节。</p>
+</section>
+<section id="三个平台适配点" class="level3">
+<h3>5.3 三个平台适配点</h3>
+<table>
+<thead>
+<tr class="header">
+<th>代码</th>
+<th>解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>num_workers = 0 if os.name == 'nt' else 8</code></td>
+<td>Windows 多进程 DataLoader 容易出问题</td>
+</tr>
+<tr class="even">
+<td><code>import datasets  # noqa</code> 放在 torch 之前</td>
+<td>规避 Windows 下 pyarrow 与 torch 的 DLL 冲突</td>
+</tr>
+<tr class="odd">
+<td><code>resolve_dtype()</code> 在 bf16 不支持时回退 fp16</td>
+<td>老卡（如你的 1650）自动降级</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>种子配置精度日志，模型数据断点包装；余弦留底一成，换卡自动折步。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-6-章-八个训练阶段逐个拆" class="level2">
+<h2>第 6 章 八个训练阶段逐个拆</h2>
+<section id="阶段总览" class="level3">
+<h3>6.1 阶段总览</h3>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>脚本</th>
+<th>需要几个模型</th>
+<th>损失</th>
+<th>数据</th>
+<th>关键超参</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>预训练</td>
+<td><code>train_pretrain.py</code></td>
+<td>1</td>
+<td>交叉熵（全序列）</td>
+<td>pretrain.jsonl</td>
+<td>lr 5e-4, seq 340</td>
+</tr>
+<tr class="even">
+<td>SFT</td>
+<td><code>train_full_sft.py</code></td>
+<td>1</td>
+<td>交叉熵（仅回答）</td>
+<td>sft.jsonl</td>
+<td>lr 1e-5, seq 768</td>
+</tr>
+<tr class="odd">
+<td>LoRA</td>
+<td><code>train_lora.py</code></td>
+<td>1（只训适配器）</td>
+<td>同 SFT</td>
+<td>sft/lora.jsonl</td>
+<td>r=16, lr 1e-4</td>
+</tr>
+<tr class="even">
+<td>蒸馏</td>
+<td><code>train_distillation.py</code></td>
+<td>2（教师+学生）</td>
+<td>α·CE + (1-α)·KL</td>
+<td>sft.jsonl</td>
+<td>α, T</td>
+</tr>
+<tr class="odd">
+<td>DPO</td>
+<td><code>train_dpo.py</code></td>
+<td>2（策略+参考）</td>
+<td>-logσ(β·Δ)</td>
+<td>dpo.jsonl</td>
+<td>β=0.15, lr 4e-8</td>
+</tr>
+<tr class="even">
+<td>PPO</td>
+<td><code>train_ppo.py</code></td>
+<td>4（actor/critic/ref/RM）</td>
+<td>clip + value + KL</td>
+<td>rlaif.jsonl</td>
+<td>γ=1, λ=0.95, KL 0.02</td>
+</tr>
+<tr class="odd">
+<td>GRPO</td>
+<td><code>train_grpo.py</code></td>
+<td>3（policy/ref/RM）</td>
+<td>clip 或 CISPO + KL</td>
+<td>rlaif.jsonl</td>
+<td>每组 6 条, β=0.1</td>
+</tr>
+<tr class="even">
+<td>Agentic RL</td>
+<td><code>train_agent.py</code></td>
+<td>3</td>
+<td>规则奖励 + GT 校验</td>
+<td>agent_rl.jsonl</td>
+<td>多轮, max_turns=3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>一句话记住区别</strong>：预训练学「说话」，SFT 学「听指令」，LoRA 学「低成本加技能」， 蒸馏学「模仿」，DPO 学「偏好」，PPO/GRPO 学「试错」，Agentic RL 学「用工具」。</p>
+</section>
+<section id="预训练学词语接龙" class="level3">
+<h3>6.2 预训练：学词语接龙</h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>res <span class="op">=</span> model(input_ids, labels<span class="op">=</span>labels)</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> res.loss <span class="op">+</span> res.aux_loss        <span class="co"># MoE 才有 aux_loss</span></span></code></pre></div>
+<p>数据是 340 token 的短片段，batch 32，梯度累积 8，学习率 5e-4，训 2 轮。 目标就是让 loss 从 ln(6400) ≈ 8.76 降下来。</p>
+</section>
+<section id="sft学怎么回答" class="level3">
+<h3>6.3 SFT：学「怎么回答」</h3>
+<p>差别只有两点：</p>
+<ol type="1">
+<li>Dataset 换成 <code>SFTDataset</code>（只对回答算 loss）；</li>
+<li>学习率从 5e-4 降到 <strong>1e-5</strong>，序列长度从 340 升到 768。</li>
+</ol>
+<p><strong>为什么 SFT 学习率要小两个数量级</strong>：预训练是「从随机到有知识」，可以大步走； SFT 是「在已有能力上微调行为」，步子大了会破坏预训练学到的知识（灾难性遗忘）。</p>
+</section>
+<section id="lora70-行手写实现" class="level3">
+<h3>6.4 LoRA：70 行手写实现</h3>
+<div class="sourceCode" id="cb24"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> LoRA(nn.Module):</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>    <span class="kw">def</span> <span class="fu">__init__</span>(<span class="va">self</span>, in_features, out_features, rank, lora_alpha<span class="op">=</span><span class="va">None</span>):</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>        scaling <span class="op">=</span> (rank <span class="cf">if</span> lora_alpha <span class="kw">is</span> <span class="va">None</span> <span class="cf">else</span> lora_alpha) <span class="op">/</span> rank</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.A <span class="op">=</span> nn.Linear(in_features, rank, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.B <span class="op">=</span> nn.Linear(rank, out_features, bias<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.A.weight.data.normal_(<span class="dv">0</span>, <span class="fl">0.02</span>)   <span class="co"># A 高斯初始化</span></span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>        <span class="va">self</span>.B.weight.data.zero_()            <span class="co"># B 全零</span></span></code></pre></div>
+<p><strong>为什么 B 初始化为 0</strong>：训练开始时 <code>B·A = 0</code>，LoRA 对原模型<strong>零扰动</strong>， 模型从「和底座完全一样」的状态开始学。如果 A、B 都随机初始化， 一开始就注入了噪声，微调会先「修复噪声」再学新知识。</p>
+<p><strong>注入方式</strong>（<code>apply_lora</code>）：</p>
+<div class="sourceCode" id="cb25"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> <span class="bu">isinstance</span>(module, nn.Linear) <span class="kw">and</span> module.in_features <span class="op">==</span> module.out_features:</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>    <span class="bu">setattr</span>(module, <span class="st">&quot;lora&quot;</span>, lora)</span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>    module.forward <span class="op">=</span> <span class="kw">lambda</span> x: original_forward(x) <span class="op">+</span> lora(x)</span></code></pre></div>
+<p>只给<strong>方阵</strong>线性层加 LoRA——在这套结构里就是每层的 <code>q_proj</code> 和 <code>o_proj</code>（768→768）。 <code>k_proj</code>、<code>v_proj</code> 是 768→384（GQA），<code>lm_head</code> 是 768→6400，都不是方阵。</p>
+<p><strong>训练的四个动作</strong>：</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>apply_lora(model)                                  <span class="co"># 1. 注入</span></span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> p <span class="kw">in</span> model.parameters(): p.requires_grad <span class="op">=</span> <span class="st">&#39;lora&#39;</span> <span class="kw">in</span> name</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>optimizer <span class="op">=</span> AdamW(lora_params)                     <span class="co"># 2. 只优化 LoRA 参数</span></span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>save_lora(model, path)                             <span class="co"># 3. 只存适配器</span></span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>merge_lora(model, lora_path, save_path)            <span class="co"># 4. 合并回完整权重</span></span></code></pre></div>
+<p><code>merge_lora</code> 的核心三行：</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a>delta <span class="op">=</span> (lora.B.weight <span class="op">@</span> lora.A.weight) <span class="op">*</span> lora.scaling</span>
+<span id="cb27-2"><a href="#cb27-2" aria-hidden="true" tabindex="-1"></a>state_dict[name].weight <span class="op">+=</span> delta</span></code></pre></div>
+<p>推理时零额外开销——适配器被「烤」进原权重。</p>
+</section>
+<section id="蒸馏学生模仿老师的完整分布" class="level3">
+<h3>6.5 蒸馏：学生模仿老师的完整分布</h3>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a>distill_loss <span class="op">=</span> KL(softmax(student<span class="op">/</span>T), softmax(teacher<span class="op">/</span>T)) <span class="op">*</span> T²</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> alpha <span class="op">*</span> ce_loss <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> alpha) <span class="op">*</span> distill_loss</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>概念</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>硬标签（CE）</td>
+<td>学「标准答案」</td>
+</tr>
+<tr class="even">
+<td>软标签（KL, T&gt;1）</td>
+<td>学老师的「可能性分布」（哪些错答案更像对的）</td>
+</tr>
+<tr class="odd">
+<td><code>T²</code></td>
+<td>温度抬高后梯度会变小，乘 T² 补偿</td>
+</tr>
+<tr class="even">
+<td><code>alpha</code></td>
+<td>两者权重</td>
+</tr>
+</tbody>
+</table>
+<p><strong>代码细节</strong>：教师 logits 截断到学生词表大小（<code>teacher_logits[..., :vocab]</code>）， 处理「老师词表比学生大」的情况；loss 只在 label ≠ -100 的位置计算。</p>
+</section>
+<section id="dpo不用奖励模型的偏好对齐" class="level3">
+<h3>6.6 DPO：不用奖励模型的偏好对齐</h3>
+<p>核心 5 行（<code>train_dpo.py:34</code>）：</p>
+<div class="sourceCode" id="cb29"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb29-1"><a href="#cb29-1" aria-hidden="true" tabindex="-1"></a>pi_logratios  <span class="op">=</span> logp_pi_chosen   <span class="op">-</span> logp_pi_rejected</span>
+<span id="cb29-2"><a href="#cb29-2" aria-hidden="true" tabindex="-1"></a>ref_logratios <span class="op">=</span> logp_ref_chosen  <span class="op">-</span> logp_ref_rejected</span>
+<span id="cb29-3"><a href="#cb29-3" aria-hidden="true" tabindex="-1"></a>logits <span class="op">=</span> pi_logratios <span class="op">-</span> ref_logratios</span>
+<span id="cb29-4"><a href="#cb29-4" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> <span class="op">-</span>logsigmoid(beta <span class="op">*</span> logits).mean()</span></code></pre></div>
+<p><strong>逐项解释</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>pi_logratios</code></td>
+<td>策略模型觉得「好回答」比「坏回答」好多少</td>
+</tr>
+<tr class="even">
+<td><code>ref_logratios</code></td>
+<td>参考模型原本觉得好多少（基线）</td>
+</tr>
+<tr class="odd">
+<td>差值</td>
+<td>策略<strong>相对参考模型</strong>的改进量</td>
+</tr>
+<tr class="even">
+<td><code>β</code></td>
+<td>允许偏离参考模型的程度（越小越保守）</td>
+</tr>
+<tr class="odd">
+<td><code>-logσ</code></td>
+<td>越大越好的量取反当损失</td>
+</tr>
+</tbody>
+</table>
+<p><strong>参考模型从哪来</strong>：同一个权重再加载一份，<code>eval()</code> + <code>requires_grad_(False)</code>。它提供 「原始偏好」的基线，防止策略为了讨好数据把语言能力训崩。</p>
+<p><strong>两个超参值得注意</strong>：</p>
+<ul>
+<li><code>beta</code> 默认 0.15（CLI），函数默认 0.1；</li>
+<li><strong>学习率 4e-8</strong>——比 SFT 又小了两个数量级。DPO 极易训崩，README 也注明「建议 ≤5e-8 避免遗忘」。</li>
+</ul>
+</section>
+<section id="ppo四个模型一起转" class="level3">
+<h3>6.7 PPO：四个模型一起转</h3>
+<p>PPO 是项目里最复杂的脚本（442 行），需要四份模型：</p>
+<table>
+<thead>
+<tr class="header">
+<th>模型</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>actor（策略）</td>
+<td>生成回答，被训练</td>
+</tr>
+<tr class="even">
+<td>critic（价值）</td>
+<td>估计「当前状态值多少」，用 <code>value_head</code> 输出标量</td>
+</tr>
+<tr class="odd">
+<td>ref（参考）</td>
+<td>算 KL 惩罚</td>
+</tr>
+<tr class="even">
+<td>reward model</td>
+<td>给回答打分（外部模型，<code>LMForRewardModel</code>）</td>
+</tr>
+</tbody>
+</table>
+<p>流程：</p>
+<pre><code>采样 → 计算奖励 → GAE 算优势 → 归一化 → 多个 mini-batch 更新 → 早停</code></pre>
+<p><strong>GAE（广义优势估计）</strong> 的核心三行：</p>
+<div class="sourceCode" id="cb31"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb31-1"><a href="#cb31-1" aria-hidden="true" tabindex="-1"></a>delta <span class="op">=</span> token_rewards[:, t] <span class="op">+</span> gamma <span class="op">*</span> v[t<span class="op">+</span><span class="dv">1</span>] <span class="op">-</span> v[t]</span>
+<span id="cb31-2"><a href="#cb31-2" aria-hidden="true" tabindex="-1"></a>lastgaelam <span class="op">=</span> delta <span class="op">+</span> gamma <span class="op">*</span> lam <span class="op">*</span> lastgaelam</span></code></pre></div>
+<p>从序列末尾倒推，把「即时奖励 + 未来价值」平滑成每个 token 的优势。</p>
+<p><strong>四个防崩设计</strong>（值得抄的工程细节）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th>代码</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>优势归一化</td>
+<td><code>(adv - mean) / std</code></td>
+<td>稳定梯度尺度</td>
+</tr>
+<tr class="even">
+<td>策略裁剪</td>
+<td><code>clamp(ratio, 1±ε)</code></td>
+<td>防止单步更新过大</td>
+</tr>
+<tr class="odd">
+<td>价值裁剪</td>
+<td><code>clamp(value, old±range)</code></td>
+<td>同上，作用在 critic</td>
+</tr>
+<tr class="even">
+<td>KL 早停</td>
+<td><code>approx_kl &gt; 0.25</code> 停止本轮更新</td>
+<td>偏离太远就收手</td>
+</tr>
+</tbody>
+</table>
+<p><strong>多卡上的一个坑</strong>（代码里有注释）：</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 同步各卡的 approx_kl，防止某卡 break 而其它卡继续导致 DDP 死锁</span></span>
+<span id="cb32-2"><a href="#cb32-2" aria-hidden="true" tabindex="-1"></a>dist.all_reduce(approx_kl_val, op<span class="op">=</span>ReduceOp.AVG)</span></code></pre></div>
+<p>早停必须全卡同步——否则一张卡停了、其它卡还在 forward，DDP 会永久挂起。</p>
+</section>
+<section id="grpo去掉-critic-的-ppo" class="level3">
+<h3>6.8 GRPO：去掉 critic 的 PPO</h3>
+<p>GRPO 的核心洞察：<strong>不需要价值模型，用「同一问题的多条回答」的相对好坏当基线</strong>。</p>
+<div class="sourceCode" id="cb33"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb33-1"><a href="#cb33-1" aria-hidden="true" tabindex="-1"></a>grouped <span class="op">=</span> rewards.view(B, num_generations)        <span class="co"># 每个 prompt 生成 6 条</span></span>
+<span id="cb33-2"><a href="#cb33-2" aria-hidden="true" tabindex="-1"></a>advantages <span class="op">=</span> (rewards <span class="op">-</span> mean) <span class="op">/</span> (std <span class="op">+</span> <span class="fl">1e-4</span>)      <span class="co"># 组内标准化</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>对比</th>
+<th>PPO</th>
+<th>GRPO</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>基线来源</td>
+<td>critic 模型估计</td>
+<td>同组其它回答的平均分</td>
+</tr>
+<tr class="even">
+<td>模型数量</td>
+<td>4</td>
+<td>3（省掉 critic）</td>
+</tr>
+<tr class="odd">
+<td>显存</td>
+<td>高</td>
+<td>低</td>
+</tr>
+<tr class="even">
+<td>适合</td>
+<td>通用</td>
+<td>可验证奖励（数学/代码）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>两种损失实现</strong>（<code>args.loss_type</code>）：</p>
+<div class="sourceCode" id="cb34"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 标准 GRPO：带裁剪的 PPO 目标</span></span>
+<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a>per_token_loss <span class="op">=</span> <span class="op">-</span><span class="bu">min</span>(ratio <span class="op">*</span> A, clip(ratio, <span class="dv">1</span><span class="op">-</span>ε, <span class="dv">1</span><span class="op">+</span>ε) <span class="op">*</span> A) <span class="op">+</span> β <span class="op">*</span> KL</span>
+<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a><span class="co"># CISPO：只裁剪分母，保留所有 token 的梯度</span></span>
+<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>clamped_ratio <span class="op">=</span> clamp(ratio, <span class="bu">max</span><span class="op">=</span>ε_high).detach()</span>
+<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>per_token_loss <span class="op">=</span> <span class="op">-</span>(clamped_ratio <span class="op">*</span> A <span class="op">*</span> logp <span class="op">-</span> β <span class="op">*</span> KL)</span></code></pre></div>
+<p><strong>KL 估计</strong>用的是 k3 估计量：<code>exp(kl) - kl - 1</code>，比直接减 log 比值更稳定， 且始终非负。</p>
+</section>
+<section id="rollout-抽象同一套算法两种后端" class="level3">
+<h3>6.9 rollout 抽象：同一套算法，两种后端</h3>
+<p><code>rollout_engine.py</code> 定义了 <code>RolloutEngine</code> 抽象类，两个实现：</p>
+<table>
+<thead>
+<tr class="header">
+<th>引擎</th>
+<th>实现</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>TorchRolloutEngine</code></td>
+<td>直接调 <code>model.generate</code></td>
+<td>默认，简单</td>
+</tr>
+<tr class="even">
+<td><code>SGLangRolloutEngine</code></td>
+<td>HTTP 请求 SGLang 服务</td>
+<td>高吞吐，推理与训练分离</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么值得学</strong>：RL 训练里「采样」往往占 80% 的时间。把采样抽成接口， 就能在不改算法的情况下把生成换成高性能引擎（vLLM/SGLang）。这也是 <code>verl</code>、<code>OpenRLHF</code> 这类工业框架的标准做法。</p>
+</section>
+<section id="agentic-rl多轮工具调用" class="level3">
+<h3>6.10 Agentic RL：多轮工具调用</h3>
+<p><code>train_agent.py</code> 在 GRPO 基础上加了「环境交互」：</p>
+<pre><code>模型输出 &lt;tool_call&gt; → 解析 → 执行工具 → 把结果作为 &lt;tool_response&gt; 塞回对话 → 继续生成</code></pre>
+<p>奖励是<strong>规则化的</strong>（<code>calculate_rewards</code>）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>规则</th>
+<th>分数</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>标签不成对（<code>&lt;tool_call&gt;</code> 与 <code>&lt;/tool_call&gt;</code> 数量不等）</td>
+<td>-0.5 × 差值</td>
+</tr>
+<tr class="even">
+<td>工具名不在允许列表 / 参数非法</td>
+<td>每个 -0.5</td>
+</tr>
+<tr class="odd">
+<td>调用次数与 GT 不一致</td>
+<td>-0.5 × 差值</td>
+</tr>
+<tr class="even">
+<td>最终文本包含 GT 答案</td>
+<td>+2.5 × 命中比例</td>
+</tr>
+<tr class="odd">
+<td>未完成（超过 max_turns）</td>
+<td>-0.5</td>
+</tr>
+<tr class="even">
+<td>重复 n-gram</td>
+<td>按比例扣分</td>
+</tr>
+<tr class="odd">
+<td>总分</td>
+<td>裁剪到 [-3, 3]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>这就是「RLVR」的典型形态</strong>：奖励不是人类打分，而是<strong>可自动验证的信号</strong> （工具能不能执行、答案对不对）。</p>
+<blockquote>
+<p>口诀：<strong>预训练算全部，SFT 只算回答；LoRA 零扰动起步，DPO 只动偏好；PPO 四模型，GRPO 组内比；Agent 靠规则，奖励自动给。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-7-章-推理转换与部署" class="level2">
+<h2>第 7 章 推理、转换与部署</h2>
+<section id="两种加载方式" class="level3">
+<h3>7.1 两种加载方式</h3>
+<p><code>eval_llm.py</code> 支持两条路径：</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 方式 1：原生 PyTorch 权重（./out/xxx_768.pth）</span></span>
+<span id="cb36-2"><a href="#cb36-2" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> MiniMindForCausalLM(MiniMindConfig(...))</span>
+<span id="cb36-3"><a href="#cb36-3" aria-hidden="true" tabindex="-1"></a>model.load_state_dict(torch.load(ckp))</span>
+<span id="cb36-4"><a href="#cb36-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb36-5"><a href="#cb36-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 方式 2：transformers 格式目录（./minimind-3）</span></span>
+<span id="cb36-6"><a href="#cb36-6" aria-hidden="true" tabindex="-1"></a>model <span class="op">=</span> AutoModelForCausalLM.from_pretrained(args.load_from, trust_remote_code<span class="op">=</span><span class="va">True</span>)</span></code></pre></div>
+<p>判断逻辑很实用：<code>if os.path.basename(path) == 'model'</code> 就用原生权重， 否则当成 HF 目录。<strong>这也意味着项目自带的 <code>model/</code> 目录名不能改</strong>。</p>
+</section>
+<section id="对话推理的三个关键调用" class="level3">
+<h3>7.2 对话推理的三个关键调用</h3>
+<div class="sourceCode" id="cb37"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb37-1"><a href="#cb37-1" aria-hidden="true" tabindex="-1"></a>prompt <span class="op">=</span> tokenizer.apply_chat_template(conversation, tokenize<span class="op">=</span><span class="va">False</span>,</span>
+<span id="cb37-2"><a href="#cb37-2" aria-hidden="true" tabindex="-1"></a>                                       add_generation_prompt<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb37-3"><a href="#cb37-3" aria-hidden="true" tabindex="-1"></a>                                       open_thinking<span class="op">=</span><span class="bu">bool</span>(args.open_thinking))</span>
+<span id="cb37-4"><a href="#cb37-4" aria-hidden="true" tabindex="-1"></a>generated <span class="op">=</span> model.generate(..., streamer<span class="op">=</span>streamer, temperature<span class="op">=</span><span class="fl">0.85</span>, top_p<span class="op">=</span><span class="fl">0.95</span>)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>open_thinking</code></td>
+<td>是否让模型先输出 <code>&lt;think&gt;...&lt;/think&gt;</code> 再回答</td>
+</tr>
+<tr class="even">
+<td><code>streamer</code></td>
+<td>逐 token 打印（TextStreamer）</td>
+</tr>
+<tr class="odd">
+<td><code>repetition_penalty=1</code></td>
+<td>这个小模型不需要惩罚，开了反而降低表达</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="权重转换两个方向" class="level3">
+<h3>7.3 权重转换：两个方向</h3>
+<p><code>scripts/convert_model.py</code> 提供两种转换：</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>函数</th>
+<th>目标</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>convert_torch2transformers_minimind</code></td>
+<td>MiniMind 自己的 AutoModel 格式</td>
+<td>可直接 <code>from_pretrained</code></td>
+</tr>
+<tr class="even">
+<td><code>convert_torch2transformers</code></td>
+<td><strong>Qwen3 / Qwen3-MoE 兼容配置</strong></td>
+<td>直接吃 vLLM / llama.cpp 生态</td>
+</tr>
+</tbody>
+</table>
+<p>后者是「结构对齐 Qwen3」的兑现：把 <code>MiniMindConfig</code> 的字段映射成 <code>Qwen3Config</code>，再把 state_dict 的键名对齐，就能让 Qwen3 的实现加载 MiniMind 的权重。</p>
+<p>同文件里还有 <code>merge_lora</code> 的调用，训练完 LoRA 后一步导出完整模型。</p>
+</section>
+<section id="服务化" class="level3">
+<h3>7.4 服务化</h3>
+<table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>脚本</th>
+<th>能力</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>serve_openai_api.py</code></td>
+<td>FastAPI，<code>/v1/chat/completions</code>，SSE 流式，返回 <code>reasoning_content</code> 与 <code>tool_calls</code></td>
+</tr>
+<tr class="even">
+<td><code>web_demo.py</code></td>
+<td>Streamlit 界面，支持思考展示、工具选择、多轮 Tool Call</td>
+</tr>
+<tr class="odd">
+<td><code>scripts/chat_api.py</code></td>
+<td>调用任意 OpenAI 兼容服务的极简客户端</td>
+</tr>
+</tbody>
+</table>
+<p>服务端做了一件很多教学项目不做的事：<strong>把 <code>&lt;think&gt;</code> 和 <code>&lt;tool_call&gt;</code> 从文本里解析出来， 按 OpenAI 协议字段返回</strong>，这样 Open-WebUI、FastGPT 这类客户端可以直接接。</p>
+</section>
+<section id="第三方生态" class="level3">
+<h3>7.5 第三方生态</h3>
+<table>
+<thead>
+<tr class="header">
+<th>引擎</th>
+<th>前提</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>llama.cpp</td>
+<td>转成 GGUF（项目提供转换说明）</td>
+</tr>
+<tr class="even">
+<td>vLLM</td>
+<td>用 transformers 格式目录直接 <code>--model</code></td>
+</tr>
+<tr class="odd">
+<td>ollama</td>
+<td>基于 GGUF</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>原生权重调试，HF 格式部署；think 与 tool_call 解析成字段，才接得进生态。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-8-章-值得学的设计取舍与四个坑" class="level2">
+<h2>第 8 章 值得学的设计取舍与四个坑</h2>
+<section id="为什么是8-层-768-宽而不是4-层-1024" class="level3">
+<h3>8.1 为什么是「8 层 × 768 宽」，而不是「4 层 × 1024」</h3>
+<p>README 里引用了 MobileLLM 的结论：<strong>在参数量固定时，深度比宽度更重要</strong>。 作者自己的实验补充了两个边界：</p>
+<table>
+<thead>
+<tr class="header">
+<th>观察</th>
+<th>结论</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>深而窄 &gt; 宽而浅（同参数量）</td>
+<td>优先加深</td>
+</tr>
+<tr class="even">
+<td><code>d_model &lt; 512</code> 时</td>
+<td>词嵌入太窄，加深也补不回来</td>
+</tr>
+<tr class="odd">
+<td><code>d_model &gt; 1536</code> 时</td>
+<td>再加宽不如继续加层</td>
+</tr>
+</tbody>
+</table>
+<p>所以 64M 的配置选 <code>8 × 768</code>：能加深（8 层不算浅），又不至于窄到 512 以下。</p>
+</section>
+<section id="词表-6400-的取舍" class="level3">
+<h3>8.2 词表 6400 的取舍</h3>
+<table>
+<thead>
+<tr class="header">
+<th>词表大小</th>
+<th>优点</th>
+<th>缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>6400（本项目）</td>
+<td>Embedding 小（4.9M，占 7.7%），训练快</td>
+<td>中文压缩率低，序列更长</td>
+</tr>
+<tr class="even">
+<td>15 万（Qwen）</td>
+<td>压缩率高，token 少</td>
+<td>Embedding 巨大，小模型负担重</td>
+</tr>
+</tbody>
+</table>
+<p>对小模型来说，<strong>省下来的 Embedding 参数可以拿去加深网络</strong>，这个取舍是合理的。</p>
+</section>
+<section id="四个真实的坑" class="level3">
+<h3>8.3 四个真实的坑</h3>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>现象</th>
+<th>源码里的处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Windows 多进程 DataLoader</td>
+<td>崩溃/卡死</td>
+<td><code>num_workers=0 if os.name=='nt'</code></td>
+</tr>
+<tr class="even">
+<td>pyarrow 与 torch 的 DLL 冲突</td>
+<td>import 时报错</td>
+<td><code>import datasets</code> 放在 <code>torch</code> 之前（文件顶部注释写明 issue #771）</td>
+</tr>
+<tr class="odd">
+<td>LoRA 的 monkey-patch 与 torch.compile 不兼容</td>
+<td>编译报错</td>
+<td><code>train_lora.py</code> 里自动关闭 compile 并打印提示</td>
+</tr>
+<tr class="even">
+<td>换卡数续训 step 对不上</td>
+<td>重复训练/跳过数据</td>
+<td>按 <code>saved_ws/current_ws</code> 换算 step</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="文档与代码的一处不一致" class="level3">
+<h3>8.4 文档与代码的一处不一致</h3>
+<p>README 写「支持 DDP、DeepSpeed」，但仓库里<strong>只有 DDP 的实现</strong>： 训练脚本用 <code>DistributedDataParallel</code> + <code>torchrun</code>，没有任何 <code>deepspeed</code> 配置或启动脚本 （全仓库搜索 <code>deepspeed</code> 只在 README 出现）。</p>
+<p><strong>读法建议</strong>：把 README 的功能列表当成「作者验证过可行」而不是「开箱即用」。 用 DeepSpeed 需要自己补 <code>ds_config</code> 和启动方式——正好可以接上你之前那本 DeepSpeed 教材。</p>
+<blockquote>
+<p>口诀：<strong>深度优先于宽度，词表要小而够用；文档当方向，代码当事实。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-9-章-局限与常见误读" class="level2">
+<h2>第 9 章 局限与常见误读</h2>
+<section id="能力边界64m-能做什么" class="level3">
+<h3>9.1 能力边界：64M 能做什么</h3>
+<table>
+<thead>
+<tr class="header">
+<th>能做</th>
+<th>不能做</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>流畅的中文对话（短问题）</td>
+<td>可靠的事实知识</td>
+</tr>
+<tr class="even">
+<td>简单指令、格式遵循</td>
+<td>复杂推理、多步数学</td>
+</tr>
+<tr class="odd">
+<td>基本的工具调用格式</td>
+<td>长文档理解</td>
+</tr>
+<tr class="even">
+<td>情感/风格模仿</td>
+<td>专业领域准确性</td>
+</tr>
+</tbody>
+</table>
+<p>README 自己也贴了一段 early Zero 模型的对话，里面英文回答直接崩坏—— 这不是 bug，是 64M 参数 + 小数据的必然结果。</p>
+</section>
+<section id="四个常见误读" class="level3">
+<h3>9.2 四个常见误读</h3>
+<table>
+<thead>
+<tr class="header">
+<th>误读</th>
+<th>事实</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>「3 块钱训出 GPT」</td>
+<td>3 块钱训出的是「会聊天的小模型」，不是 GPT</td>
+</tr>
+<tr class="even">
+<td>「DPO 能提升智力」</td>
+<td>DPO 改变的是偏好（更符合人类喜好），不提升事实能力</td>
+</tr>
+<tr class="odd">
+<td>「MoE 推理更快」</td>
+<td>原生的 MoE 实现训练更慢（分桶 + kernel 启停），推理也需要融合算子才快</td>
+</tr>
+<tr class="even">
+<td>「代码里支持多卡就够了」</td>
+<td>只做了 DDP；真正的显存优化（ZeRO/FSDP）要自己接</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="工程上的简化" class="level3">
+<h3>9.3 工程上的简化</h3>
+<table>
+<thead>
+<tr class="header">
+<th>简化</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>没有评测流水线内置（有 C-Eval 等脚本但需自备数据）</td>
+<td>不好做严格的模型对比</td>
+</tr>
+<tr class="even">
+<td>没有 tensor/pipeline parallel</td>
+<td>上限就是单卡能放下的规模</td>
+</tr>
+<tr class="odd">
+<td>数据清洗脚本不在仓库（只给成品 jsonl）</td>
+<td>复现「数据质量」这一环有缺口</td>
+</tr>
+<tr class="even">
+<td>奖励模型是外部模型，不在训练链内</td>
+<td>RM 质量决定 RL 上限</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>口诀：<strong>能力看参数量，对齐看后训练；三块钱买的是流程，不是智能。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-10-章-在-4gb-显卡上能跑到什么程度" class="level2">
+<h2>第 10 章 在 4GB 显卡上能跑到什么程度</h2>
+<p>这一节专门回答「你的 GTX 1650 / 4GB 能不能玩」。以下数字来自本机实测与按比例的估算。</p>
+<section id="模型本身完全放得下" class="level3">
+<h3>10.1 模型本身：完全放得下</h3>
+<table>
+<thead>
+<tr class="header">
+<th>项目</th>
+<th>64M Dense</th>
+<th>198M MoE</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>fp16 权重</td>
+<td>122 MB</td>
+<td>约 380 MB</td>
+</tr>
+<tr class="even">
+<td>全量训练（AdamW，16B/参）</td>
+<td>0.95 GB</td>
+<td>约 2.95 GB</td>
+</tr>
+<tr class="odd">
+<td>加上激活值（batch 4~8）</td>
+<td>约 2~3 GB</td>
+<td><strong>超过 4 GB</strong></td>
+</tr>
+<tr class="even">
+<td>结论</td>
+<td>✅ 能训</td>
+<td>❌ 不建议</td>
+</tr>
+</tbody>
+</table>
+<p><strong>实测参考</strong>：fp16 推理峰值只有 144 MB，生成速度 13.9 tok/s（32 个 token 用了 2.3 秒）。 推理完全没问题，训练要小心 batch。</p>
+</section>
+<section id="训练时间估算" class="level3">
+<h3>10.2 训练时间估算</h3>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>3090（README 实测）</th>
+<th>你的 1650（估算）</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>pretrain_t2t_mini</td>
+<td>1.21 h</td>
+<td>约 10 ~ 14 h</td>
+</tr>
+<tr class="even">
+<td>sft_t2t_mini</td>
+<td>1.10 h</td>
+<td>约 9 ~ 13 h</td>
+</tr>
+</tbody>
+</table>
+<p>估算依据：3090 的 fp32 算力约为 1650 的 12 倍，显存带宽约 7 倍， 实际训练差距通常取中间值。<strong>「挂着跑一夜」是可行的</strong>，但别指望一小时出结果。</p>
+</section>
+<section id="两个需要注意的点" class="level3">
+<h3>10.3 两个需要注意的点</h3>
+<p><strong>① 你的卡会被自动降成 fp16</strong></p>
+<div class="sourceCode" id="cb38"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>torch.cuda.is_bf16_supported(including_emulation<span class="op">=</span><span class="va">False</span>)   <span class="co"># 1650 → False</span></span></code></pre></div>
+<p><code>resolve_dtype</code> 会打印「不原生支持 bfloat16，已回退为 float16」。我们在 PyTorch 教材里 实测过：这块卡上 fp16 autocast 比 fp32 慢约 5 倍——所以上面的时间估算<strong>可能还要更悲观</strong>。</p>
+<p><strong>② 脚本没有 fp32 训练路径</strong></p>
+<div class="sourceCode" id="cb39"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb39-1"><a href="#cb39-1" aria-hidden="true" tabindex="-1"></a>dtype <span class="op">=</span> torch.bfloat16 <span class="cf">if</span> args.dtype <span class="op">==</span> <span class="st">&quot;bfloat16&quot;</span> <span class="cf">else</span> torch.float16</span></code></pre></div>
+<p>传 <code>--dtype float32</code> 也会被当成 fp16。想强制 fp32 需要自己改这一行。</p>
+</section>
+<section id="建议的上手路径" class="level3">
+<h3>10.4 建议的上手路径</h3>
+<div class="sourceCode" id="cb40"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1) 先把仓库拷到自己的工作目录，避免污染</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 2) 安装依赖（建议在你的 conda 环境里单独装，requirements 里钉死了版本）</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> minimind-master</span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a><span class="ex">pip</span> install <span class="at">-r</span> requirements.txt <span class="at">-i</span> https://pypi.tuna.tsinghua.edu.cn/simple</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a><span class="co"># 3) 先只做推理：下载 64M 的 minimind-3 权重（约 130 MB）</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a><span class="ex">modelscope</span> download <span class="at">--model</span> gongjy/minimind-3 <span class="at">--local_dir</span> ./minimind-3</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> eval_llm.py <span class="at">--load_from</span> ./minimind-3</span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 4) 想自己训：下载 mini 数据集，进 trainer 目录</span></span>
+<span id="cb40-11"><a href="#cb40-11" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> trainer</span>
+<span id="cb40-12"><a href="#cb40-12" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> train_pretrain.py <span class="at">--batch_size</span> 4 <span class="at">--accumulation_steps</span> 16 <span class="at">--max_seq_len</span> 256</span></code></pre></div>
+<p><strong>顺序建议</strong>：先推理（10 分钟）→ 再跑 10 个 step 看显存 → 最后才放长跑。 不要一上来就 <code>--epochs 2</code> 跑通宵，先确认显存峰值与 loss 曲线。</p>
+<blockquote>
+<p>口诀：<strong>推理十分钟，训练一整夜；先看显存峰值，再决定跑多久。</strong></p>
+</blockquote>
+<hr />
+</section>
+</section>
+<section id="第-11-章-自测问答" class="level2">
+<h2>第 11 章 自测问答</h2>
+<p>合上源码，能答上来再往下走。</p>
+<section id="一模型结构" class="level3">
+<h3>一、模型结构</h3>
+<ol type="1">
+<li>MiniMind-3 的 GQA 是几比几？影响什么？</li>
+<li>为什么 <code>intermediate_size</code> 是 2432 而不是 3072？</li>
+<li><code>q_norm</code> / <code>k_norm</code> 加在哪里？为什么加？</li>
+<li>MoE 在 k=1 时怎么让路由器拿到梯度？</li>
+<li><code>tie_word_embeddings=True</code> 省了多少参数？</li>
+</ol>
+</section>
+<section id="二数据" class="level3">
+<h3>二、数据</h3>
+<ol start="6" type="1">
+<li>预训练和 SFT 的 labels 最大区别是什么？</li>
+<li>SFT 怎么定位「哪些 token 该算损失」？</li>
+<li>DPO 数据为什么要把 ids 左移一位？</li>
+<li>为什么要概率性移除空的 <code>&lt;think&gt;&lt;/think&gt;</code>？</li>
+<li>为什么 RL 数据只保留 prompt？</li>
+</ol>
+</section>
+<section id="三训练" class="level3">
+<h3>三、训练</h3>
+<ol start="11" type="1">
+<li><code>get_lr</code> 为什么保留 10% 地板而不是降到 0？</li>
+<li>换卡数续训时 step 怎么处理？</li>
+<li>LoRA 的 B 矩阵为什么初始化为 0？</li>
+<li>LoRA 在这套结构里加在哪些层？为什么只有这些层？</li>
+<li>DPO 的参考模型从哪来？为什么需要它？</li>
+<li>PPO 的四个模型分别是什么？</li>
+<li>GRPO 相比 PPO 省掉了什么？用什么替代？</li>
+<li>GRPO 的 KL 估计量为什么用 <code>exp(kl)-kl-1</code>？</li>
+<li>rollout 引擎抽象的意义是什么？</li>
+<li>Agentic RL 的奖励为什么可以不要奖励模型？</li>
+</ol>
+</section>
+<section id="参考答案要点" class="level3">
+<h3>参考答案要点</h3>
+<ol type="1">
+<li>8 Q / 4 KV = 2:1；KV cache 减半，推理省显存。</li>
+<li>SwiGLU 有三个矩阵，<code>8/3×d</code> 等效普通 FFN 的 4 倍，2432 ≈ 8/3×768 且能被 64 整除。</li>
+<li>在 head_dim 上做 RMSNorm；大学习率下稳定注意力分数。</li>
+<li>直通估计：<code>top1 - top1.detach() + 1.0</code>，前向为 1，反向有梯度。</li>
+<li>Embedding 与 lm_head 共享，6400×768 ≈ 4.9M，占总参数约 7.7%。</li>
+<li>预训练对整段文本算损失；SFT 只对 assistant 回答算，其余位置 -100。</li>
+<li>用 <code>&lt;|im_start|&gt;assistant\n</code> 与 <code>&lt;|im_end|&gt;\n</code> 的 token 序列扫描。</li>
+<li>模型内部已经是「位置 t 预测 t+1」，数据再移位一次配合 gather 取 logp。</li>
+<li>让模型学会「有时思考、有时不思考」，避免永远输出空思考标签。</li>
+<li>RL 要模型自己生成回答再评分，给答案就变成 SFT 了。</li>
+<li>避免末期学习率过小、被梯度噪声主导；保留探索能力。</li>
+<li>按 <code>step × saved_world / current_world</code> 换算，再用 SkipBatchSampler 跳过。</li>
+<li>保证初始时 <code>B·A=0</code>，对原模型零扰动。</li>
+<li>只加方阵（<code>q_proj</code>、<code>o_proj</code>），因为 <code>in_features == out_features</code>。</li>
+<li>同权重再加载一份并冻结；提供偏好基线，约束策略不偏离语言能力。</li>
+<li>actor、critic（value head）、ref、reward model。</li>
+<li>省掉 critic；用同一 prompt 的 N 条回答的组内均值/方差做优势基线。</li>
+<li>k3 估计量无偏且非负，数值更稳。</li>
+<li>采样占 RL 大部分时间，抽象后可以换 SGLang/vLLM 而不改算法。</li>
+<li>奖励来自可验证信号（工具执行结果、GT 匹配、格式规则），不需要人类/RM 打分。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="附录-a-训练超参速查" class="level2">
+<h2>附录 A 训练超参速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>阶段</th>
+<th>lr</th>
+<th>epochs</th>
+<th>batch</th>
+<th>累积</th>
+<th>seq len</th>
+<th>其他</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>pretrain</td>
+<td>5e-4</td>
+<td>2</td>
+<td>32</td>
+<td>8</td>
+<td>340</td>
+<td>grad_clip 1.0</td>
+</tr>
+<tr class="even">
+<td>full_sft</td>
+<td>1e-5</td>
+<td>2</td>
+<td>16</td>
+<td>1</td>
+<td>768</td>
+<td></td>
+</tr>
+<tr class="odd">
+<td>lora</td>
+<td>1e-4</td>
+<td>10</td>
+<td>32</td>
+<td>1</td>
+<td>340</td>
+<td>r=16, 只训适配器</td>
+</tr>
+<tr class="even">
+<td>distillation</td>
+<td>5e-5 量级</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>768</td>
+<td>α、T 需调</td>
+</tr>
+<tr class="odd">
+<td>dpo</td>
+<td>4e-8</td>
+<td>1</td>
+<td>4</td>
+<td>1</td>
+<td>1024</td>
+<td>β=0.15</td>
+</tr>
+<tr class="even">
+<td>ppo</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>1024</td>
+<td>γ=1.0, λ=0.95, clip 0.2, kl_coef 0.02</td>
+</tr>
+<tr class="odd">
+<td>grpo</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>每组 6 条, β=0.1, ε=0.2</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>表内 lr 取自各脚本 argparse 默认值；实际跑之前用 <code>--help</code> 确认当前版本。</p>
+</blockquote>
+</section>
+<section id="附录-b-术语中英对照" class="level2">
+<h2>附录 B 术语中英对照</h2>
+<table>
+<thead>
+<tr class="header">
+<th>中文</th>
+<th>英文</th>
+<th>在本项目里的位置</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>预训练</td>
+<td>pretraining</td>
+<td><code>train_pretrain.py</code></td>
+</tr>
+<tr class="even">
+<td>监督微调</td>
+<td>SFT</td>
+<td><code>train_full_sft.py</code></td>
+</tr>
+<tr class="odd">
+<td>低秩适配</td>
+<td>LoRA</td>
+<td><code>model_lora.py</code></td>
+</tr>
+<tr class="even">
+<td>知识蒸馏</td>
+<td>knowledge distillation</td>
+<td><code>train_distillation.py</code></td>
+</tr>
+<tr class="odd">
+<td>直接偏好优化</td>
+<td>DPO</td>
+<td><code>train_dpo.py</code></td>
+</tr>
+<tr class="even">
+<td>近端策略优化</td>
+<td>PPO</td>
+<td><code>train_ppo.py</code></td>
+</tr>
+<tr class="odd">
+<td>组相对策略优化</td>
+<td>GRPO</td>
+<td><code>train_grpo.py</code></td>
+</tr>
+<tr class="even">
+<td>可验证奖励</td>
+<td>RLVR</td>
+<td><code>train_agent.py</code> 的规则奖励</td>
+</tr>
+<tr class="odd">
+<td>分组查询注意力</td>
+<td>GQA</td>
+<td><code>Attention</code> 的 kv_heads</td>
+</tr>
+<tr class="even">
+<td>旋转位置编码</td>
+<td>RoPE / YaRN</td>
+<td><code>precompute_freqs_cis</code></td>
+</tr>
+<tr class="odd">
+<td>混合专家</td>
+<td>MoE</td>
+<td><code>MOEFeedForward</code></td>
+</tr>
+<tr class="even">
+<td>负载均衡损失</td>
+<td>aux loss</td>
+<td><code>router_aux_loss_coef</code></td>
+</tr>
+<tr class="odd">
+<td>广义优势估计</td>
+<td>GAE</td>
+<td><code>train_ppo.py</code></td>
+</tr>
+<tr class="even">
+<td>采样引擎</td>
+<td>rollout engine</td>
+<td><code>rollout_engine.py</code></td>
+</tr>
+<tr class="odd">
+<td>断点续训</td>
+<td>resume</td>
+<td><code>lm_checkpoint</code></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="附录-c-一句话记住每个文件" class="level2">
+<h2>附录 C 一句话记住每个文件</h2>
+<table>
+<thead>
+<tr class="header">
+<th>文件</th>
+<th>一句话</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>model_minimind.py</code></td>
+<td>模型 + 手写 generate，全部结构都在这</td>
+</tr>
+<tr class="even">
+<td><code>model_lora.py</code></td>
+<td>70 行注入/保存/合并 LoRA</td>
+</tr>
+<tr class="odd">
+<td><code>lm_dataset.py</code></td>
+<td>四种数据格式 + 只算回答的 mask</td>
+</tr>
+<tr class="even">
+<td><code>train_pretrain.py</code></td>
+<td>最小训练循环</td>
+</tr>
+<tr class="odd">
+<td><code>train_full_sft.py</code></td>
+<td>多一个 loss mask</td>
+</tr>
+<tr class="even">
+<td><code>train_lora.py</code></td>
+<td>冻结主干只训适配器</td>
+</tr>
+<tr class="odd">
+<td><code>train_distillation.py</code></td>
+<td>CE + KL 双损失</td>
+</tr>
+<tr class="even">
+<td><code>train_dpo.py</code></td>
+<td>两模型、四行损失</td>
+</tr>
+<tr class="odd">
+<td><code>train_ppo.py</code></td>
+<td>四模型 + GAE</td>
+</tr>
+<tr class="even">
+<td><code>train_grpo.py</code></td>
+<td>组内比较 + 无 critic</td>
+</tr>
+<tr class="odd">
+<td><code>train_agent.py</code></td>
+<td>多轮工具调用 + 规则奖励</td>
+</tr>
+<tr class="even">
+<td><code>rollout_engine.py</code></td>
+<td>采样后端抽象</td>
+</tr>
+<tr class="odd">
+<td><code>trainer_utils.py</code></td>
+<td>学习率/断点/奖励模型/安全求值</td>
+</tr>
+<tr class="even">
+<td><code>convert_model.py</code></td>
+<td>原生 → HF → Qwen3 兼容 → 生态</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="结语" class="level2">
+<h2>结语</h2>
+<p>MiniMind 的价值不在于「小」，而在于<strong>把每个环节都写成了能读的代码</strong>：</p>
+<ul>
+<li>结构：8 层、GQA、RoPE、SwiGLU——和 Qwen3 同型，读到的东西能迁移；</li>
+<li>数据：四种 jsonl，覆盖从接龙到工具调用的全部形态；</li>
+<li>训练：八个阶段，每个阶段只差「损失函数那十几行」；</li>
+<li>部署：转 HF、转 Qwen3 兼容、OpenAI 兼容服务，一条龙。</li>
+</ul>
+<p><strong>推荐的下一步</strong>：把 <code>train_pretrain.py</code> 和 <code>train_full_sft.py</code> 的 diff 看一遍—— 你会发现从「学说话」到「学回答」，代码只改了 6 行。这 6 行就是大模型训练里 最值钱的部分之一。</p>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

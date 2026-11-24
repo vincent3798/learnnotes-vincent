@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_distillation.py 详解：老师带学生</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_distillation.py 详解：老师带学生</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#定位把大模型的知识压进小模型">0. 定位：把大模型的知识压进小模型</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#为什么要用软标签">1. 为什么要用「软标签」</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#三个公式">2. 三个公式</a>
+<ul>
+<li class="lvl3"><a href="#软化">2.1 软化</a></li>
+<li class="lvl3"><a href="#kl-散度">2.2 KL 散度</a></li>
+<li class="lvl3"><a href="#乘-t²">2.3 乘 T²</a></li>
+</ul></li>
+<li class="lvl2"><a href="#distillation_loss25">3. distillation_loss（:25）</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#train_epoch-逐段41">4. train_epoch 逐段（:41）</a>
+<ul>
+<li class="lvl3"><a href="#掩码对齐关键一步">4.1 掩码对齐（关键一步）</a></li>
+<li class="lvl3"><a href="#两个前向">4.2 两个前向</a></li>
+<li class="lvl3"><a href="#硬标签损失带掩码的-ce">4.3 硬标签损失：带掩码的 CE</a></li>
+<li class="lvl3"><a href="#软标签损失只在被监督的位置">4.4 软标签损失：只在被监督的位置</a></li>
+<li class="lvl3"><a href="#合成总损失">4.5 合成总损失</a></li>
+</ul></li>
+<li class="lvl2"><a href="#教师模型三个必须">5. 教师模型：三个必须</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#参数">6. 参数</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#与-sft-的对照">7. 与 SFT 的对照</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#显存与本地可行性">8. 显存与本地可行性</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#坑">9. 坑</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#白盒-vs-黑盒顺带一提">10. 白盒 vs 黑盒，顺带一提</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">11. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">12. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_distillation.py-详解老师带学生" class="level1">
+<h1><code>train_distillation.py</code> 详解：老师带学生</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_distillation.py</code>（242 行） 配套：<code>SFTDataset</code>、<code>init_model</code>、<code>lm_checkpoint</code> 说明：本文按源码讲解，不跑训练。</p>
+</blockquote>
+<hr />
+<section id="定位把大模型的知识压进小模型" class="level2">
+<h2>0. 定位：把大模型的知识压进小模型</h2>
+<p>默认配置很有意思：<strong>教师是 MoE（198M），学生是 Dense（64M）</strong>—— 这正是「MoE 蒸馏成 Dense」的真实用法（DeepSeek-R1 的蒸馏就是这么做的）。</p>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>学生（Dense）</th>
+<th>教师（MoE）</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>参数量</td>
+<td>63.91M</td>
+<td>198.42M（激活约 64M）</td>
+</tr>
+<tr class="even">
+<td>是否训练</td>
+<td>✅</td>
+<td>❌ 冻结</td>
+</tr>
+<tr class="odd">
+<td>输出</td>
+<td>logits</td>
+<td>logits</td>
+</tr>
+</tbody>
+</table>
+<p><strong>它和 SFT 的关系</strong>：数据集、mask、训练循环全部复用 SFT， 只是损失从「一个 CE」变成「α·CE + (1−α)·KL」。</p>
+<blockquote>
+<p>口诀：<strong>硬标签教对错，软标签教分寸；温度放大分布，T² 补回梯度。</strong></p>
+</blockquote>
+<hr />
+</section>
+<section id="为什么要用软标签" class="level2">
+<h2>1. 为什么要用「软标签」</h2>
+<p>普通 SFT 只告诉模型「正确答案是 token A」； 蒸馏额外告诉它「<strong>B 有 10% 的可能，C 只有 0.1%</strong>」——这些相对大小就是「暗知识」。</p>
+<table>
+<thead>
+<tr class="header">
+<th>信号</th>
+<th>来源</th>
+<th>教什么</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>硬标签（CE）</td>
+<td>数据集</td>
+<td>对/错</td>
+</tr>
+<tr class="even">
+<td>软标签（KL）</td>
+<td>教师模型的完整分布</td>
+<td>相似度、歧义、置信度</td>
+</tr>
+</tbody>
+</table>
+<p><strong>温度的作用</strong>：教师的分布通常很尖（top-1 0.99），软标签信息被淹没。 除以温度 T&gt;1 把分布「摊平」，让次要类别的概率显现出来。</p>
+<hr />
+</section>
+<section id="三个公式" class="level2">
+<h2>2. 三个公式</h2>
+<section id="软化" class="level3">
+<h3>2.1 软化</h3>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>teacher_probs <span class="op">=</span> softmax(teacher_logits <span class="op">/</span> T)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>student_log_probs <span class="op">=</span> log_softmax(student_logits <span class="op">/</span> T)</span></code></pre></div>
+</section>
+<section id="kl-散度" class="level3">
+<h3>2.2 KL 散度</h3>
+<div class="sourceCode" id="cb2"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>kl <span class="op">=</span> F.kl_div(student_log_probs, teacher_probs, reduction<span class="op">=</span><span class="st">&#39;batchmean&#39;</span>)</span></code></pre></div>
+<p>PyTorch 的 <code>kl_div(input, target)</code> 计算的是 <code>KL(target ‖ exp(input))</code>， 所以这里是 <strong>KL(教师 ‖ 学生)</strong>——「forward KL」，倾向于让学生覆盖教师的所有可能。</p>
+</section>
+<section id="乘-t²" class="level3">
+<h3>2.3 乘 T²</h3>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="cf">return</span> (temperature <span class="op">**</span> <span class="dv">2</span>) <span class="op">*</span> kl</span></code></pre></div>
+<p><strong>为什么乘 T²</strong>：温度抬高后 softmax 的梯度会缩小约 <code>1/T²</code>。 乘回去，让不同温度下的损失量级可比、学习率不用重调。</p>
+<hr />
+</section>
+</section>
+<section id="distillation_loss25" class="level2">
+<h2>3. <code>distillation_loss</code>（:25）</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> distillation_loss(student_logits, teacher_logits, temperature<span class="op">=</span><span class="fl">1.0</span>, reduction<span class="op">=</span><span class="st">&#39;batchmean&#39;</span>):</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> student_logits.size(<span class="dv">0</span>) <span class="op">==</span> <span class="dv">0</span> <span class="kw">and</span> reduction <span class="op">==</span> <span class="st">&#39;batchmean&#39;</span>:</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>        <span class="cf">return</span> student_logits.<span class="bu">sum</span>() <span class="op">*</span> <span class="fl">0.0</span>        <span class="co"># 空张量保护</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>        teacher_probs <span class="op">=</span> F.softmax(teacher_logits <span class="op">/</span> temperature, dim<span class="op">=-</span><span class="dv">1</span>).detach()</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>    student_log_probs <span class="op">=</span> F.log_softmax(student_logits <span class="op">/</span> temperature, dim<span class="op">=-</span><span class="dv">1</span>)</span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>    kl <span class="op">=</span> F.kl_div(student_log_probs, teacher_probs, reduction<span class="op">=</span>reduction)</span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> (temperature <span class="op">**</span> <span class="dv">2</span>) <span class="op">*</span> kl</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>no_grad</code> 包住教师</td>
+<td>教师不参与梯度</td>
+</tr>
+<tr class="even">
+<td><code>.detach()</code></td>
+<td>双保险</td>
+</tr>
+<tr class="odd">
+<td>空张量返回 0</td>
+<td>某批可能没有任何被监督的 token</td>
+</tr>
+<tr class="even">
+<td><code>batchmean</code></td>
+<td>除以 batch 大小，而非元素数</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="train_epoch-逐段41" class="level2">
+<h2>4. <code>train_epoch</code> 逐段（:41）</h2>
+<section id="掩码对齐关键一步" class="level3">
+<h3>4.1 掩码对齐（关键一步）</h3>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>loss_mask <span class="op">=</span> (labels[..., <span class="dv">1</span>:] <span class="op">!=</span> <span class="op">-</span><span class="dv">100</span>).<span class="bu">float</span>()</span></code></pre></div>
+<p><strong>注意 <code>[..., 1:]</code></strong>：模型是「位置 t 预测 t+1」，所以训练用的标签要错开一位。 后面的 <code>shift_labels</code> 也是同一个切片：</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>shift_labels <span class="op">=</span> labels[..., <span class="dv">1</span>:].contiguous()</span></code></pre></div>
+<p><strong>掩码的含义</strong>：只有 assistant 回答部分是真值，问题与 padding 都是 <code>-100</code>。 蒸馏也只在这些位置做——<strong>不让模型去模仿教师「怎么生成问题」</strong>。</p>
+</section>
+<section id="两个前向" class="level3">
+<h3>4.2 两个前向</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="cf">with</span> autocast_ctx:</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>    res <span class="op">=</span> model(input_ids)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>    student_logits <span class="op">=</span> res.logits[..., :<span class="op">-</span><span class="dv">1</span>, :].contiguous()      <span class="co"># 去掉最后一个位置</span></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="cf">if</span> teacher_model <span class="kw">is</span> <span class="kw">not</span> <span class="va">None</span>:</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> torch.no_grad():</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>        teacher_logits <span class="op">=</span> teacher_model(input_ids).logits[..., :<span class="op">-</span><span class="dv">1</span>, :].contiguous()</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>        teacher_logits <span class="op">=</span> teacher_logits[..., :vocab_size_student]   <span class="co"># 词表对齐</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>细节</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>logits[..., :-1]</code></td>
+<td>最后一位没有「下一个 token」可预测</td>
+</tr>
+<tr class="even">
+<td>教师走 <code>no_grad</code></td>
+<td>省显存、省时间</td>
+</tr>
+<tr class="odd">
+<td>教师 logits 截断到学生词表</td>
+<td>防御性处理；本项目两者词表相同（6400）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>词表截断是个隐患</strong>：它假设「学生词表 = 教师词表的前缀」。 如果两者训练过不同的 tokenizer，截断出来的 id 对不上，蒸馏会悄悄学错。 本项目的 <code>SFTDataset</code> 用学生 tokenizer 编码，教师又用同一份词表，所以安全。</p>
+</section>
+<section id="硬标签损失带掩码的-ce" class="level3">
+<h3>4.3 硬标签损失：带掩码的 CE</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>ce_loss <span class="op">=</span> F.cross_entropy(student_logits.view(<span class="op">-</span><span class="dv">1</span>, V), shift_labels.view(<span class="op">-</span><span class="dv">1</span>),</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>                          ignore_index<span class="op">=-</span><span class="dv">100</span>, reduction<span class="op">=</span><span class="st">&#39;none&#39;</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>ce_loss_raw <span class="op">=</span> torch.<span class="bu">sum</span>(ce_loss <span class="op">*</span> loss_mask_flat) <span class="op">/</span> (loss_mask_flat.<span class="bu">sum</span>() <span class="op">+</span> <span class="fl">1e-8</span>)</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>ce_loss <span class="op">=</span> ce_loss_raw <span class="op">+</span> res.aux_loss <span class="cf">if</span> student 是 MoE <span class="cf">else</span> ce_loss_raw</span></code></pre></div>
+<p><strong>为什么用 <code>reduction='none'</code> 再手动加权</strong>： <code>ignore_index=-100</code> 本来就会跳过这些位置，用 <code>mean</code> 也能算对。 这里手动加权的真正目的是<strong>用同一份 mask 选出参与蒸馏的位置</strong>—— 两个损失必须落在同一批 token 上，显式写出来更不容易错。</p>
+</section>
+<section id="软标签损失只在被监督的位置" class="level3">
+<h3>4.4 软标签损失：只在被监督的位置</h3>
+<div class="sourceCode" id="cb9"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a>distill_loss <span class="op">=</span> distillation_loss(</span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>    student_logits.view(<span class="op">-</span><span class="dv">1</span>, V)[loss_mask_flat <span class="op">==</span> <span class="dv">1</span>],</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    teacher_logits.view(<span class="op">-</span><span class="dv">1</span>, V)[loss_mask_flat <span class="op">==</span> <span class="dv">1</span>],</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>    temperature<span class="op">=</span>temperature)</span></code></pre></div>
+<p><strong>用布尔索引挑出「回答 token」的 logits</strong>，形状 <code>(N_valid, V)</code>。 这和 <code>ce_loss</code> 用的是同一批位置——两个损失对齐。</p>
+</section>
+<section id="合成总损失" class="level3">
+<h3>4.5 合成总损失</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>loss <span class="op">=</span> (alpha <span class="op">*</span> ce_loss <span class="op">+</span> (<span class="dv">1</span> <span class="op">-</span> alpha) <span class="op">*</span> distill_loss) <span class="op">/</span> accumulation_steps</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>α</th>
+<th>效果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1.0</td>
+<td>退化成普通 SFT</td>
+</tr>
+<tr class="even">
+<td>0.0</td>
+<td>纯蒸馏（没有标准答案）</td>
+</tr>
+<tr class="odd">
+<td><strong>0.5</strong>（默认）</td>
+<td>一半硬、一半软</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意</strong>：<code>aux_loss</code> 被包含在 <code>ce_loss</code> 里，所以它也被乘了 α。 MoE 学生的路由均衡会被「打折」——小问题，但读代码要知道。</p>
+<hr />
+</section>
+</section>
+<section id="教师模型三个必须" class="level2">
+<h2>5. 教师模型：三个必须</h2>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>teacher_model, _ <span class="op">=</span> init_model(lm_config_teacher, args.from_teacher_weight, device<span class="op">=</span>args.device)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>teacher_model.<span class="bu">eval</span>()</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>teacher_model.requires_grad_(<span class="va">False</span>)</span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>必须</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>eval()</code></td>
+<td>dropout 会让教师的分布每次不同，学生学不到稳定信号</td>
+</tr>
+<tr class="even">
+<td><code>requires_grad_(False)</code></td>
+<td>不做无用梯度计算</td>
+</tr>
+<tr class="odd">
+<td>同一个 tokenizer</td>
+<td>数据集用学生 tokenizer 编码，教师必须认识同一套 id</td>
+</tr>
+</tbody>
+</table>
+<p><strong>教师不参与 DDP</strong>：每张卡各放一份、只做前向。</p>
+<hr />
+</section>
+<section id="参数" class="level2">
+<h2>6. 参数</h2>
+<table>
+<thead>
+<tr class="header">
+<th>参数</th>
+<th>默认</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>save_weight</code></td>
+<td><code>full_dist</code></td>
+<td>产出 <code>full_dist_768.pth</code></td>
+</tr>
+<tr class="even">
+<td><code>epochs</code></td>
+<td><strong>6</strong></td>
+<td>比 SFT（2）多：蒸馏收敛慢</td>
+</tr>
+<tr class="odd">
+<td><code>batch_size</code></td>
+<td>32</td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>learning_rate</code></td>
+<td><strong>5e-6</strong></td>
+<td>介于 SFT（1e-5）与 DPO 之间</td>
+</tr>
+<tr class="odd">
+<td><code>max_seq_len</code></td>
+<td>340</td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>student_hidden_size/layers</code></td>
+<td>768 / 8</td>
+<td>Dense 学生</td>
+</tr>
+<tr class="odd">
+<td><code>teacher_hidden_size/layers</code></td>
+<td>768 / 8</td>
+<td>MoE 教师</td>
+</tr>
+<tr class="even">
+<td><code>student_use_moe</code> / <code>teacher_use_moe</code></td>
+<td>0 / <strong>1</strong></td>
+<td>默认 MoE→Dense</td>
+</tr>
+<tr class="odd">
+<td><code>from_student_weight</code></td>
+<td><code>full_sft</code></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><code>from_teacher_weight</code></td>
+<td><code>full_sft</code></td>
+<td>对应 <code>full_sft_768_moe.pth</code></td>
+</tr>
+<tr class="odd">
+<td><code>alpha</code></td>
+<td>0.5</td>
+<td>CE 权重</td>
+</tr>
+<tr class="even">
+<td><code>temperature</code></td>
+<td><strong>1.5</strong></td>
+<td>软化温度</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么 lr 只有 5e-6</strong>：学生已经有 SFT 权重，蒸馏是「精修分布」，步子要小。</p>
+<p><strong>为什么 epochs 是 6</strong>：软标签的信号更「弱」但更「密」，需要多轮才能吸收。</p>
+<hr />
+</section>
+<section id="与-sft-的对照" class="level2">
+<h2>7. 与 SFT 的对照</h2>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>full_sft</th>
+<th>distillation</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>模型数</td>
+<td>1</td>
+<td>2（学生 + 教师）</td>
+</tr>
+<tr class="even">
+<td>损失</td>
+<td>CE</td>
+<td>α·CE + (1−α)·KL</td>
+</tr>
+<tr class="odd">
+<td>数据</td>
+<td>SFT</td>
+<td><strong>同一个 SFT</strong></td>
+</tr>
+<tr class="even">
+<td>mask</td>
+<td>只算回答</td>
+<td>只算回答（两个损失共用）</td>
+</tr>
+<tr class="odd">
+<td>lr</td>
+<td>1e-5</td>
+<td>5e-6</td>
+</tr>
+<tr class="even">
+<td>epochs</td>
+<td>2</td>
+<td>6</td>
+</tr>
+<tr class="odd">
+<td>保存</td>
+<td>学生</td>
+<td>学生（教师不存）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>循环骨架、精度、保存、DDP 逻辑完全一致。</strong></p>
+<hr />
+</section>
+<section id="显存与本地可行性" class="level2">
+<h2>8. 显存与本地可行性</h2>
+<p>以默认配置（dense 学生 64M + MoE 教师 198M）、batch 32 × 340 估算：</p>
+<table>
+<thead>
+<tr class="header">
+<th>项</th>
+<th>量级</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>学生权重 + 梯度 + Adam</td>
+<td>~1.1 GB</td>
+</tr>
+<tr class="even">
+<td>教师权重（fp16，冻结）</td>
+<td>~0.38 GB</td>
+</tr>
+<tr class="odd">
+<td>学生 logits（32×340×6400，fp16）</td>
+<td>~139 MB</td>
+</tr>
+<tr class="even">
+<td>教师 logits（同上）</td>
+<td>~139 MB</td>
+</tr>
+<tr class="odd">
+<td>激活</td>
+<td>1~2 GB</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：batch 32 在 4GB 上会 OOM；把 <code>--batch_size</code> 降到 <strong>4~8</strong>、 或把 <code>--max_seq_len</code> 降到 256，有机会跑通。这是本项目里<strong>第二适合本机体验</strong>的脚本 （第一是 LoRA）。</p>
+<hr />
+</section>
+<section id="坑" class="level2">
+<h2>9. 坑</h2>
+<table>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>现象</th>
+<th>原因 / 处理</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>教师没 <code>eval()</code></td>
+<td>学生学到的分布抖动</td>
+<td>必须在每轮开始设置</td>
+</tr>
+<tr class="even">
+<td>词表不一致</td>
+<td>蒸馏「学歪」且不报错</td>
+<td>教师必须用同一 tokenizer</td>
+</tr>
+<tr class="odd">
+<td>忘记 <code>/temperature</code></td>
+<td>软标签退化成硬标签</td>
+<td>两个模型都要除</td>
+</tr>
+<tr class="even">
+<td>忘记 <code>× T²</code></td>
+<td>换温度后学习率失配</td>
+<td>函数里已处理</td>
+</tr>
+<tr class="odd">
+<td><code>alpha=1</code></td>
+<td>变回 SFT，蒸馏无效</td>
+<td>检查参数</td>
+</tr>
+<tr class="even">
+<td><code>alpha=0</code></td>
+<td>没有标准答案，可能跑偏</td>
+<td>一般留 0.3~0.7</td>
+</tr>
+<tr class="odd">
+<td>教师权重路径</td>
+<td><code>full_sft_768_moe.pth</code> 不存在</td>
+<td>MoE 后缀 <code>_moe</code> 不能少</td>
+</tr>
+<tr class="even">
+<td>蒸馏位置错</td>
+<td>把问题也蒸馏了</td>
+<td>依赖 SFT mask；检查数据</td>
+</tr>
+<tr class="odd">
+<td>显存翻倍</td>
+<td>OOM</td>
+<td>降 batch / 序列长度</td>
+</tr>
+<tr class="even">
+<td>教师 logits 全精度</td>
+<td>显存暴涨</td>
+<td>已在 no_grad + autocast 下</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="白盒-vs-黑盒顺带一提" class="level2">
+<h2>10. 白盒 vs 黑盒，顺带一提</h2>
+<table>
+<thead>
+<tr class="header">
+<th>类型</th>
+<th>需要什么</th>
+<th>本项目</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>白盒蒸馏</strong></td>
+<td>教师 logits（完整分布）</td>
+<td>✅ 就是这一份</td>
+</tr>
+<tr class="even">
+<td>黑盒蒸馏</td>
+<td>只需要教师生成的文本</td>
+<td>用 SFT 数据也能做</td>
+</tr>
+</tbody>
+</table>
+<p>白盒信息更多（有「暗知识」），但要求教师和学生<strong>在同一台机器上同时前向</strong>； 黑盒只需要离线数据，适合教师超大（比如从 API 蒸馏）。</p>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>11. 自测题</h2>
+<ol type="1">
+<li>蒸馏比 SFT 多提供了什么信息？</li>
+<li>温度的作用是什么？为什么还要乘 T²？</li>
+<li><code>F.kl_div(student_logp, teacher_prob)</code> 算的是哪个方向的 KL？</li>
+<li>蒸馏为什么只在 assistant 区间做？</li>
+<li>教师模型为什么必须 <code>eval()</code> + <code>no_grad</code>？</li>
+<li>教师 logits 截断到学生词表，前提是什么？</li>
+<li>默认配置里教师和学生分别是什么结构？</li>
+<li>α=1 和 α=0 分别退化成什么？</li>
+<li>lr 为什么取 5e-6？</li>
+<li>续训时恢复的是谁的权重？</li>
+<li>白盒蒸馏与黑盒蒸馏的区别？</li>
+<li>本机 4GB 要改哪些参数？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>完整分布（软标签），包含「相似答案的相对可能性」。</li>
+<li>摊平分布让次要类别显现；T² 补偿 softmax 梯度缩小。</li>
+<li>KL(教师 ‖ 学生)（forward KL）。</li>
+<li>问题部分是输入，不该让模型去模仿教师「生成问题」。</li>
+<li>避免 dropout 噪声；省显存与计算。</li>
+<li>学生词表是教师词表的前缀（同一 tokenizer）。</li>
+<li>教师 MoE 198M，学生 Dense 64M。</li>
+<li>α=1 → 普通 SFT；α=0 → 纯蒸馏。</li>
+<li>学生已有 SFT 权重，精修分布要小步。</li>
+<li>只恢复学生（和优化器）；教师永远重新加载并冻结。</li>
+<li>白盒要教师 logits，黑盒只要教师文本。</li>
+<li>降 batch 到 4~8、序列长度降到 256。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>12. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>段落</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>数据</td>
+<td>复用 SFTDataset，只在回答 token 上蒸馏</td>
+</tr>
+<tr class="even">
+<td>掩码</td>
+<td><code>labels[..., 1:] != -100</code></td>
+</tr>
+<tr class="odd">
+<td>损失</td>
+<td>α·CE + (1−α)·KL·T²</td>
+</tr>
+<tr class="even">
+<td>温度</td>
+<td>默认 1.5</td>
+</tr>
+<tr class="odd">
+<td>教师</td>
+<td>冻结、eval、同词表、不 DDP</td>
+</tr>
+<tr class="even">
+<td>lr / epochs</td>
+<td>5e-6 / 6</td>
+</tr>
+<tr class="odd">
+<td>保存</td>
+<td>只存学生</td>
+</tr>
+<tr class="even">
+<td>本机</td>
+<td>降 batch/长度可跑</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>

@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>train_tokenizer.py 详解：从零训一个 BPE 分词器</title>
+<style>
+:root {
+  --ink: #26241f;
+  --muted: #6b6459;
+  --line: #e3ded3;
+  --paper: #fdfcf9;
+  --panel: #f6f4ee;
+  --accent: #8a6d3b;
+  --accent-soft: #efe7d8;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  font-family: "Georgia", "Noto Serif CJK SC", "Source Han Serif SC", "Songti SC", "SimSun", serif;
+  line-height: 1.85;
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 16.5px;
+}
+.layout {
+  display: flex;
+  gap: 2.4rem;
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 1.6rem 1.4rem 5rem;
+  align-items: flex-start;
+}
+nav.breadcrumb {
+  max-width: 1240px;
+  margin: 1.4rem auto 0;
+  padding: 0 1.4rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+nav.breadcrumb a { color: var(--muted); text-decoration: none; border-bottom: 1px dotted var(--line); }
+nav.breadcrumb a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ---------- sidebar toc ---------- */
+nav#toc {
+  flex: 0 0 250px;
+  width: 250px;
+  position: sticky;
+  top: 1.2rem;
+  max-height: calc(100vh - 2.4rem);
+  overflow-y: auto;
+  padding: 0.4rem 1.1rem 1rem 0;
+  border-right: 1px solid var(--line);
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.82rem;
+  line-height: 1.6;
+}
+nav#toc .toc-title {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: 0 0 0.6rem;
+}
+nav#toc ul { list-style: none; margin: 0; padding: 0; }
+nav#toc ul ul { padding-left: 0.9rem; }
+nav#toc li { margin: 0.18rem 0; }
+nav#toc a {
+  color: var(--muted);
+  text-decoration: none;
+  display: block;
+  padding: 0.16rem 0.3rem;
+  border-left: 2px solid transparent;
+}
+nav#toc a:hover { color: var(--accent); border-left-color: var(--accent); background: var(--accent-soft); }
+nav#toc > ul > li > a { color: var(--ink); font-weight: 600; }
+
+/* ---------- article ---------- */
+main { flex: 1 1 auto; min-width: 0; max-width: 820px; }
+article h1 {
+  font-size: 2rem;
+  line-height: 1.35;
+  margin: 0.2rem 0 1.4rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2.5px solid var(--ink);
+  letter-spacing: 0.01em;
+}
+article h2 {
+  font-size: 1.42rem;
+  margin: 3rem 0 1rem;
+  padding: 0.35rem 0 0.45rem 0.75rem;
+  border-left: 5px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, var(--accent-soft), transparent 65%);
+}
+article h3 {
+  font-size: 1.12rem;
+  margin: 2.1rem 0 0.8rem;
+  color: #3a352c;
+}
+article h4 { font-size: 1rem; margin: 1.5rem 0 0.6rem; }
+article p { margin: 0.95rem 0; text-align: justify; }
+article strong { color: #1c1a16; }
+article em { color: #4a443a; }
+article a { color: var(--accent); text-decoration: none; border-bottom: 1px solid var(--accent-soft); }
+article a:hover { border-bottom-color: var(--accent); }
+
+article ul, article ol { padding-left: 1.5rem; margin: 0.9rem 0; }
+article li { margin: 0.35rem 0; }
+article li > p { margin: 0.3rem 0; }
+
+article blockquote {
+  margin: 1.3rem 0;
+  padding: 0.85rem 1.1rem;
+  border-left: 3px solid var(--accent);
+  background: var(--panel);
+  color: #4c463c;
+  border-radius: 0 4px 4px 0;
+}
+article blockquote p:first-child { margin-top: 0; }
+article blockquote p:last-child { margin-bottom: 0; }
+
+article code {
+  font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
+  font-size: 0.88em;
+  background: #f1eee6;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: #7a3f1d;
+}
+article pre {
+  background: #f7f4ec;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 1rem 1.1rem;
+  overflow-x: auto;
+  line-height: 1.65;
+  font-size: 0.86rem;
+}
+article pre code { background: none; padding: 0; color: #2f2b24; font-size: 1em; }
+
+article table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.4rem 0;
+  font-size: 0.9rem;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  line-height: 1.6;
+  display: block;
+  overflow-x: auto;
+}
+article thead th {
+  background: var(--accent-soft);
+  color: #2a2620;
+  font-weight: 600;
+  text-align: left;
+}
+article th, article td {
+  border: 1px solid var(--line);
+  padding: 0.5rem 0.7rem;
+  vertical-align: top;
+}
+article tbody tr:nth-child(even) { background: #faf8f3; }
+
+article hr { border: 0; border-top: 1px solid var(--line); margin: 2.6rem 0; }
+article section { scroll-margin-top: 1rem; }
+
+/* math */
+mjx-container[display="true"] { overflow-x: auto; overflow-y: hidden; padding: 0.3rem 0; }
+mjx-container { font-size: 1.02em; }
+.math-display { overflow-x: auto; }
+
+footer.prev-next {
+  max-width: 820px;
+  margin: 3.5rem 1.4rem 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+footer.prev-next a { color: var(--accent); text-decoration: none; }
+
+@media (max-width: 980px) {
+  nav#toc { display: none; }
+  .layout { padding-top: 0.6rem; }
+  article h1 { font-size: 1.6rem; }
+}
+@media print {
+  body { font-size: 11.5pt; background: #fff; }
+  nav#toc, nav.breadcrumb, footer.prev-next { display: none; }
+  .layout { display: block; padding: 0; max-width: none; }
+  main { max-width: none; }
+  article h2 { break-before: page; background: none; }
+  article table, article pre, article blockquote { break-inside: avoid; }
+  article a { color: inherit; border-bottom: none; }
+}
+
+article math { font-size: 1.02em; }
+article math[display="block"] { display: block; overflow-x: auto; margin: 0.9rem 0; padding: 0.2rem 0; }
+</style>
+
+</head>
+<body>
+<nav class="breadcrumb"><a href="#">📚 知识教材</a> &gt; train_tokenizer.py 详解：从零训一个 BPE 分词器</nav>
+<div class="layout">
+<nav id="toc" aria-label="章节目录">
+<p class="toc-title">目录</p>
+<ul>
+<li class="lvl2"><a href="#先读文件头那两行警告">0. 先读文件头那两行警告</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#全景一个脚本干三件事">1. 全景：一个脚本干三件事</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#五个全局常量">2. 五个全局常量</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#get_texts读语料兼容两种格式">3. get_texts：读语料，兼容两种格式</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#train_tokenizer六步">4. train_tokenizer：六步</a>
+<ul>
+<li class="lvl3"><a href="#建-bpe-bytelevel-预分词">4.1 建 BPE + ByteLevel 预分词</a></li>
+<li class="lvl3"><a href="#特殊-token-分三组凑够-36-个">4.2 特殊 token 分三组，凑够 36 个</a></li>
+<li class="lvl3"><a href="#训练器从-256-个字节开始合并">4.3 训练器：从 256 个字节开始合并</a></li>
+<li class="lvl3"><a href="#流式训练">4.4 流式训练</a></li>
+<li class="lvl3"><a href="#保存然后把标签-token的-special-标志翻掉">4.5 保存，然后把「标签 token」的 special 标志翻掉</a></li>
+<li class="lvl3"><a href="#手写-tokenizer_config.json">4.6 手写 tokenizer_config.json</a></li>
+<li class="lvl3"><a href="#chat_template整块模板逐段拆">4.7 chat_template：整块模板逐段拆</a></li>
+</ul></li>
+<li class="lvl2"><a href="#eval_tokenizer四项检查">5. eval_tokenizer：四项检查</a>
+<ul>
+<li class="lvl3"><a href="#模板渲染">5.1 模板渲染</a></li>
+<li class="lvl3"><a href="#编解码一致性">5.2 编解码一致性</a></li>
+<li class="lvl3"><a href="#压缩率字符数-token-数">5.3 压缩率：字符数 / token 数</a></li>
+<li class="lvl3"><a href="#流式解码与">5.4 流式解码与 �</a></li>
+</ul></li>
+<li class="lvl2"><a href="#关键设计点汇总">6. 关键设计点汇总</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#坑与注意事项">7. 坑与注意事项</a>
+<ul>
+</ul></li>
+<li class="lvl2"><a href="#自测题">8. 自测题</a>
+<ul>
+<li class="lvl3"><a href="#答案要点">答案要点</a></li>
+</ul></li>
+<li class="lvl2"><a href="#一表速查">9. 一表速查</a>
+<ul>
+</ul></li>
+</ul></nav>
+<main>
+<article>
+<section id="train_tokenizer.py-详解从零训一个-6400-词表的-bpe-分词器" class="level1">
+<h1><code>train_tokenizer.py</code> 详解：从零训一个 6400 词表的 BPE 分词器</h1>
+<blockquote>
+<p>对象：<code>minimind-master/trainer/train_tokenizer.py</code>（189 行） 环境：本机 conda <code>swift_env</code>（transformers 4.57.6 / tokenizers 0.22.2） 本文所有「实测」都来自本机完整跑通一次（语料：项目自带的两份 README，约 290 KB，955 段）， 复现脚本见 <code>train_tokenizer_probe.py</code>。</p>
+</blockquote>
+<hr />
+<section id="先读文件头那两行警告" class="level2">
+<h2>0. 先读文件头那两行警告</h2>
+<div class="sourceCode" id="cb1"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 注：不建议再重复训练tokenizer（&quot;词典&quot;），MiniMind已自带，此脚本仅供学习和参考。</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 基于不同词典训练的模型将导致输出完全不统一，降低社区的模型复用性</span></span></code></pre></div>
+<p><strong>为什么「重训词表 = 权重全废」</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>事实</th>
+<th>后果</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Embedding 是按 token id 索引的</td>
+<td>id 变了，权重对应的词就换了</td>
+</tr>
+<tr class="even">
+<td>lm_head 输出维度 = 词表大小</td>
+<td>词表一变，输出层尺寸就对不上</td>
+</tr>
+<tr class="odd">
+<td>chat template 依赖特定特殊 token</td>
+<td>模板里的 <code>&lt;|im_start|&gt;</code> 找不到</td>
+</tr>
+</tbody>
+</table>
+<p>所以这个脚本的正确定位是：</p>
+<ul>
+<li><strong>学</strong>：看清 BPE 训练、特殊 token、chat template 是怎么拼起来的；</li>
+<li><strong>用</strong>：给一个<strong>全新领域</strong>（比如某种专业符号体系）造词表，并<strong>从头训练模型</strong>；</li>
+<li><strong>不要</strong>：拿它重训一个词表去加载官方权重。</li>
+</ul>
+<hr />
+</section>
+<section id="全景一个脚本干三件事" class="level2">
+<h2>1. 全景：一个脚本干三件事</h2>
+<pre><code>get_texts()            读语料，产出纯文本流（兼容两种 jsonl 格式）
+      ↓
+train_tokenizer()      训 BPE → 保存 tokenizer.json / vocab.json / merges.txt
+                       → 手写 tokenizer_config.json（含 chat_template）
+      ↓
+eval_tokenizer()       用 transformers 加载 → 渲染模板 → 查一致性 → 测压缩率 → 试流式解码</code></pre>
+<p><strong><code>__main__</code> 里两行就串起来</strong>：</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>train_tokenizer(DATA_PATH, TOKENIZER_DIR, VOCAB_SIZE)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a>eval_tokenizer(TOKENIZER_DIR)</span></code></pre></div>
+<hr />
+</section>
+<section id="五个全局常量" class="level2">
+<h2>2. 五个全局常量</h2>
+<div class="sourceCode" id="cb4"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>DATA_PATH        <span class="op">=</span> <span class="st">&#39;../dataset/sft_t2t_mini.jsonl&#39;</span>   <span class="co"># 训练语料</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>TOKENIZER_DIR    <span class="op">=</span> <span class="st">&#39;../model_learn_tokenizer/&#39;</span>       <span class="co"># 输出目录（注意不是 model/）</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>VOCAB_SIZE       <span class="op">=</span> <span class="dv">6400</span></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>SPECIAL_TOKENS_NUM <span class="op">=</span> <span class="dv">36</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>MAX_LINES        <span class="op">=</span> <span class="dv">0</span>                                 <span class="co"># 0 = 全部；正数 = 只取前 N 条试跑</span></span></code></pre></div>
+<table>
+<thead>
+<tr class="header">
+<th>常量</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>DATA_PATH</code></td>
+<td>默认指向 SFT 数据；也可指向预训练数据（两种格式都支持）</td>
+</tr>
+<tr class="even">
+<td><code>TOKENIZER_DIR</code></td>
+<td>刻意输出到 <code>model_learn_tokenizer/</code>，<strong>避免覆盖官方 <code>model/</code></strong></td>
+</tr>
+<tr class="odd">
+<td><code>VOCAB_SIZE</code></td>
+<td>6400，和 <code>MiniMindConfig.vocab_size</code> 必须一致</td>
+</tr>
+<tr class="even">
+<td><code>SPECIAL_TOKENS_NUM</code></td>
+<td>36，特殊 token 的<strong>总数</strong>（不是额外数）</td>
+</tr>
+<tr class="odd">
+<td><code>MAX_LINES</code></td>
+<td>调试开关：先拿 100 条跑一遍看流程</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="get_texts读语料兼容两种格式" class="level2">
+<h2>3. <code>get_texts</code>：读语料，兼容两种格式</h2>
+<div class="sourceCode" id="cb5"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_texts(data_path, max_lines<span class="op">=</span>MAX_LINES):</span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>    used <span class="op">=</span> <span class="dv">0</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>    <span class="cf">with</span> <span class="bu">open</span>(data_path, <span class="st">&#39;r&#39;</span>, encoding<span class="op">=</span><span class="st">&#39;utf-8&#39;</span>, errors<span class="op">=</span><span class="st">&#39;ignore&#39;</span>) <span class="im">as</span> f:</span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>        <span class="cf">for</span> line <span class="kw">in</span> f:</span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> max_lines <span class="kw">and</span> used <span class="op">&gt;=</span> max_lines: <span class="cf">break</span></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>            <span class="cf">try</span>:</span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>                data <span class="op">=</span> json.loads(line)</span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>            <span class="cf">except</span> json.JSONDecodeError:</span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>                <span class="cf">continue</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="st">&#39;text&#39;</span> <span class="kw">in</span> data:</span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>                text <span class="op">=</span> <span class="bu">str</span>(data[<span class="st">&#39;text&#39;</span>])</span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a>            <span class="cf">else</span>:</span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>                contents <span class="op">=</span> [item.get(<span class="st">&#39;content&#39;</span>) <span class="cf">for</span> item <span class="kw">in</span> data.get(<span class="st">&#39;conversations&#39;</span>, []) <span class="cf">if</span> item.get(<span class="st">&#39;content&#39;</span>)]</span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>                text <span class="op">=</span> <span class="st">&quot;</span><span class="ch">\n</span><span class="st">&quot;</span>.join(contents) <span class="cf">if</span> contents <span class="cf">else</span> <span class="st">&#39;&#39;</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> text.strip():</span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>                used <span class="op">+=</span> <span class="dv">1</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>                <span class="cf">yield</span> text</span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> used <span class="op">==</span> <span class="dv">0</span>:</span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="cf">raise</span> <span class="pp">ValueError</span>(<span class="ss">f&#39;</span><span class="sc">{</span>data_path<span class="sc">}</span><span class="ss"> 中没有可用文本：...&#39;</span>)</span></code></pre></div>
+<p><strong>四个设计点</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>用 <code>yield</code> 生成器</td>
+<td>语料可能几个 GB，不能一次性读进内存</td>
+</tr>
+<tr class="even">
+<td>同时兼容 <code>{"text"}</code> 与 <code>{"conversations"}</code></td>
+<td>预训练语料是前者，SFT 语料是后者</td>
+</tr>
+<tr class="odd">
+<td>跳过坏行（<code>JSONDecodeError</code>）</td>
+<td>单行损坏不该让整个训练失败</td>
+</tr>
+<tr class="even">
+<td><code>used == 0</code> 时抛异常</td>
+<td>见下面的历史教训</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注释里那段历史 bug 值得单独讲</strong>：</p>
+<blockquote>
+<p>原先只解析 conversations，所以把 DATA_PATH 指向预训练语料时一条文本都取不到， BPE 仅基于 initial_alphabet 训练，产出一个没有任何 merge 的词表，<strong>且全程不报错</strong>。</p>
+</blockquote>
+<p>也就是说：语料读空了 → BPE 只拿到 256 个字节初始字符 → 训出一个「只有字节、没有合并」的废词表 → 后面训练模型时也不报错，只是效果极差。<strong>这是最阴的一类 bug：静默失败</strong>。 现在用「取不到文本就抛 ValueError」把问题挡在源头。</p>
+<p><strong>实测</strong>：</p>
+<pre><code>语料段落数: 955
+get_texts 产出条数: 955</code></pre>
+<hr />
+</section>
+<section id="train_tokenizer六步" class="level2">
+<h2>4. <code>train_tokenizer</code>：六步</h2>
+<section id="建-bpe-bytelevel-预分词" class="level3">
+<h3>4.1 建 BPE + ByteLevel 预分词</h3>
+<div class="sourceCode" id="cb7"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>tokenizer <span class="op">=</span> Tokenizer(models.BPE())</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>tokenizer.pre_tokenizer <span class="op">=</span> pre_tokenizers.ByteLevel(add_prefix_space<span class="op">=</span><span class="va">False</span>)</span></code></pre></div>
+<p><strong>为什么选 byte-level BPE</strong>（而不是 WordPiece / SentencePiece）：</p>
+<table>
+<thead>
+<tr class="header">
+<th>方案</th>
+<th>未登录词（OOV）</th>
+<th>任意 Unicode</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>词表匹配</td>
+<td>❌ 大量 OOV</td>
+<td>差</td>
+<td>最老</td>
+</tr>
+<tr class="even">
+<td>WordPiece</td>
+<td>❌ 有 <code>[UNK]</code></td>
+<td>一般</td>
+<td>BERT</td>
+</tr>
+<tr class="odd">
+<td>SentencePiece BPE</td>
+<td>❌ 有 <code>&lt;unk&gt;</code></td>
+<td>好</td>
+<td>Llama 常用</td>
+</tr>
+<tr class="even">
+<td><strong>ByteLevel BPE</strong></td>
+<td><strong>✅ 永不 OOV</strong></td>
+<td><strong>✅ 任意字节</strong></td>
+<td>GPT-2/Qwen/MiniMind</td>
+</tr>
+</tbody>
+</table>
+<p>原理：先把文本按 UTF-8 拆成字节（0–255），任何字符都能用字节组合表示， 所以<strong>永远不会有「不认识的字符」</strong>。代价是：中文一个常见字可能要 2–3 个 token （一个汉字 UTF-8 占 3 字节，若没被合并就拆成 3 个字节 token）。</p>
+<p><code>add_prefix_space=False</code>：不在文本前自动加空格——中文场景不需要。</p>
+</section>
+<section id="特殊-token-分三组凑够-36-个" class="level3">
+<h3>4.2 特殊 token 分三组，凑够 36 个</h3>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>special_tokens_list <span class="op">=</span> [                       <span class="co"># 21 个「核心」特殊 token</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;|endoftext|&gt;&quot;</span>, <span class="st">&quot;&lt;|im_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|im_end|&gt;&quot;</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;|object_ref_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|object_ref_end|&gt;&quot;</span>, <span class="st">&quot;&lt;|box_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|box_end|&gt;&quot;</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;|quad_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|quad_end|&gt;&quot;</span>,</span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;|vision_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|vision_end|&gt;&quot;</span>, <span class="st">&quot;&lt;|vision_pad|&gt;&quot;</span>, <span class="st">&quot;&lt;|image_pad|&gt;&quot;</span>, <span class="st">&quot;&lt;|video_pad|&gt;&quot;</span>,</span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;|audio_start|&gt;&quot;</span>, <span class="st">&quot;&lt;|audio_end|&gt;&quot;</span>, <span class="st">&quot;&lt;|audio_pad|&gt;&quot;</span>,</span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;tts_pad&gt;&quot;</span>, <span class="st">&quot;&lt;tts_text_bos&gt;&quot;</span>, <span class="st">&quot;&lt;tts_text_eod&gt;&quot;</span>, <span class="st">&quot;&lt;tts_text_bos_single&gt;&quot;</span></span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>additional_tokens_list <span class="op">=</span> [                    <span class="co"># 6 个「标签」token</span></span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;tool_call&gt;&quot;</span>, <span class="st">&quot;&lt;/tool_call&gt;&quot;</span>, <span class="st">&quot;&lt;tool_response&gt;&quot;</span>, <span class="st">&quot;&lt;/tool_response&gt;&quot;</span>,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;&lt;think&gt;&quot;</span>, <span class="st">&quot;&lt;/think&gt;&quot;</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>]</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>num_buffer <span class="op">=</span> <span class="dv">36</span> <span class="op">-</span> (<span class="dv">21</span> <span class="op">+</span> <span class="dv">6</span>) <span class="op">=</span> <span class="dv">9</span></span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>buffer_tokens <span class="op">=</span> [<span class="st">&quot;&lt;|buffer1|&gt;&quot;</span>, ..., <span class="st">&quot;&lt;|buffer9|&gt;&quot;</span>]   <span class="co"># 预留</span></span></code></pre></div>
+<p><strong>为什么要预留 buffer</strong>：以后要加新标记（比如新的模态、新的工具标记）时， 可以直接用空闲槽位，<strong>不用重训词表、不用重训模型</strong>。</p>
+<p><strong>实测 id 分配</strong>（顺序即 id）：</p>
+<pre><code>&lt;|endoftext|&gt; 0   &lt;|im_start|&gt; 1   &lt;|im_end|&gt; 2   ...（21 个核心）
+&lt;tool_call&gt; 21   &lt;/tool_call&gt; 22   &lt;tool_response&gt; 23   ...
+&lt;think&gt; 25   &lt;/think&gt; 26
+&lt;|buffer1|&gt; 27   ...   &lt;|buffer9|&gt; 35</code></pre>
+<p><strong>注意</strong>：特殊的 id 0/1/2 被固定成了 pad/bos/eos，这对后续训练和推理很关键。</p>
+</section>
+<section id="训练器从-256-个字节开始合并" class="level3">
+<h3>4.3 训练器：从 256 个字节开始合并</h3>
+<div class="sourceCode" id="cb10"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>trainer <span class="op">=</span> trainers.BpeTrainer(</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>    vocab_size<span class="op">=</span><span class="dv">6400</span>,</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    show_progress<span class="op">=</span><span class="va">True</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    initial_alphabet<span class="op">=</span>pre_tokenizers.ByteLevel.alphabet(),   <span class="co"># 256 个字节 token</span></span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    special_tokens<span class="op">=</span>all_special_tokens                       <span class="co"># 36 个</span></span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
+<p><code>initial_alphabet</code> 是 byte-level BPE 的<strong>地基</strong>：先放 256 个字节 token， 再通过「合并高频字节对」往上长到 6400。</p>
+<p><strong>6400 = 256 字节 + 36 特殊 + 约 6108 个合并出来的子词</strong>。</p>
+</section>
+<section id="流式训练" class="level3">
+<h3>4.4 流式训练</h3>
+<div class="sourceCode" id="cb11"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>texts <span class="op">=</span> get_texts(data_path)</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>tokenizer.train_from_iterator(texts, trainer<span class="op">=</span>trainer)</span></code></pre></div>
+<p><code>train_from_iterator</code> 接受<strong>迭代器</strong>，边读边统计，不把语料读进内存。</p>
+<p><strong>实测</strong>：955 段、约 290 KB 语料，就把 6400 词表填满了（<code>len(tokenizer) = 6400</code>）。 如果语料太小（比如只有几十条），BPE 会「有多少合并算多少」，最终词表少于 6400—— <strong>不会报错，但后面模型配置里的 <code>vocab_size</code> 就对不上了</strong>。</p>
+</section>
+<section id="保存然后把标签-token的-special-标志翻掉" class="level3">
+<h3>4.5 保存，然后把「标签 token」的 special 标志翻掉</h3>
+<div class="sourceCode" id="cb12"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>tokenizer.save(os.path.join(tokenizer_dir, <span class="st">&quot;tokenizer.json&quot;</span>))</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>tokenizer.model.save(tokenizer_dir)          <span class="co"># vocab.json + merges.txt</span></span></code></pre></div>
+<p>然后做一件很关键的事：</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> token_info <span class="kw">in</span> tokenizer_data.get(<span class="st">&#39;added_tokens&#39;</span>, []):</span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> token_info[<span class="st">&#39;content&#39;</span>] <span class="kw">not</span> <span class="kw">in</span> special_tokens_list:</span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>        token_info[<span class="st">&#39;special&#39;</span>] <span class="op">=</span> <span class="va">False</span>        <span class="co"># 21 个核心之外的都改成 False</span></span></code></pre></div>
+<p><strong>为什么要翻转</strong>：训练器把 36 个 token 全登记成 <code>special=True</code>， 但 <code>&lt;think&gt;</code> / <code>&lt;tool_call&gt;</code> 这些是<strong>内容的一部分</strong>，不应该在解码时被 <code>skip_special_tokens=True</code> 删掉。</p>
+<table>
+<thead>
+<tr class="header">
+<th>token</th>
+<th>期望行为</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>&lt;|im_end|&gt;</code></td>
+<td>解码时<strong>丢掉</strong></td>
+<td>控制符，不该出现在回答里</td>
+</tr>
+<tr class="even">
+<td><code>&lt;think&gt;</code> / <code>&lt;/think&gt;</code></td>
+<td>解码时<strong>保留</strong></td>
+<td>是模型输出的一部分</td>
+</tr>
+<tr class="odd">
+<td><code>&lt;tool_call&gt;</code> / <code>&lt;tool_response&gt;</code></td>
+<td><strong>保留</strong></td>
+<td>前端要解析</td>
+</tr>
+<tr class="even">
+<td><code>&lt;|bufferN|&gt;</code></td>
+<td>保留</td>
+<td>将来用</td>
+</tr>
+</tbody>
+</table>
+<p><strong>实测验证</strong>：</p>
+<pre><code>&lt;|im_end|&gt;       id=2      decode后保留=False
+&lt;think&gt;          id=25     decode后保留=True
+&lt;tool_call&gt;      id=21     decode后保留=True
+&lt;|buffer1|&gt;      id=27     decode后保留=True</code></pre>
+<p>同一个 <code>special</code> 标志还要在 <code>tokenizer_config.json</code> 的 <code>added_tokens_decoder</code> 里同步一遍 （第 96 行），两处保持一致，transformers 加载时才不会打架。</p>
+</section>
+<section id="手写-tokenizer_config.json" class="level3">
+<h3>4.6 手写 <code>tokenizer_config.json</code></h3>
+<p>这是全脚本信息量最大的一段。逐字段看：</p>
+<table>
+<thead>
+<tr class="header">
+<th>字段</th>
+<th>值</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>add_bos_token</code> / <code>add_eos_token</code></td>
+<td>False</td>
+<td><strong>不自动加</strong>，由 chat template 负责</td>
+</tr>
+<tr class="even">
+<td><code>bos_token</code></td>
+<td><code>&lt;|im_start|&gt;</code></td>
+<td>对话开始的标记</td>
+</tr>
+<tr class="odd">
+<td><code>eos_token</code></td>
+<td><code>&lt;|im_end|&gt;</code></td>
+<td>对话结束</td>
+</tr>
+<tr class="even">
+<td><code>pad_token</code> / <code>unk_token</code></td>
+<td><code>&lt;|endoftext|&gt;</code></td>
+<td>复用同一个，省一个 id</td>
+</tr>
+<tr class="odd">
+<td><code>additional_special_tokens</code></td>
+<td>21 个核心（去掉 endoftext）</td>
+<td>告诉 transformers 哪些是特殊 token</td>
+</tr>
+<tr class="even">
+<td><code>model_max_length</code></td>
+<td>131072</td>
+<td>理论最大长度（实际训练用 32768）</td>
+</tr>
+<tr class="odd">
+<td><code>added_tokens_decoder</code></td>
+<td>36 个，带 special 标志</td>
+<td>与 tokenizer.json 同步</td>
+</tr>
+<tr class="even">
+<td><code>image_token</code> / <code>audio_token</code> / <code>video_token</code></td>
+<td>对应 <code>&lt;|*_pad|&gt;</code></td>
+<td>多模态扩展预留</td>
+</tr>
+<tr class="odd">
+<td><code>chat_template</code></td>
+<td>一大段 Jinja2</td>
+<td>见 4.7</td>
+</tr>
+<tr class="even">
+<td><code>tokenizer_class</code></td>
+<td><code>PreTrainedTokenizerFast</code></td>
+<td>让 transformers 用 fast 实现加载</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么 pad 和 unk 都指向 <code>&lt;|endoftext|&gt;</code></strong>：ByteLevel BPE 永远不会产生未登录词， <code>unk</code> 只是占位；pad 复用 endoftext 则让「补齐」和「文档结束」共享一个 id， 在追求小词表的场景下是常见做法。</p>
+</section>
+<section id="chat_template整块模板逐段拆" class="level3">
+<h3>4.7 <code>chat_template</code>：整块模板逐段拆</h3>
+<p>这段 Jinja2 模板本质上是 <strong>Qwen2 模板的 MiniMind 定制版</strong>，分五段：</p>
+<p><strong>① tools 分支</strong>（有工具时）</p>
+<pre class="jinja"><code>{%- if tools %}
+    &lt;|im_start|&gt;system
+    {系统提示}
+    # Tools ... &lt;tools&gt;[{...},{...}]&lt;/tools&gt;
+    For each function call, return a json object ... &lt;tool_call&gt;{&quot;name&quot;:...,&quot;arguments&quot;:...}&lt;/tool_call&gt;
+{%- else %}</code></pre>
+<p>把工具定义以 JSON 形式塞进 system 消息，并<strong>明确教模型输出格式</strong>—— 这就是 Tool Call 能力的来源。</p>
+<p><strong>② 找「最后一条真实用户问题」</strong></p>
+<pre class="jinja"><code>{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
+{%- for message in messages[::-1] %}
+    {%- if ns.multi_step_tool and message.role == &quot;user&quot;
+           and not(message.content.startswith(&#39;&lt;tool_response&gt;&#39;) ...) %}
+        {%- set ns.last_query_index = index %}</code></pre>
+<p>从后往前找第一条<strong>不是工具返回</strong>的 user 消息，用来识别多步工具调用场景。</p>
+<p><strong>③ 普通消息</strong></p>
+<table>
+<thead>
+<tr class="header">
+<th>role</th>
+<th>渲染</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>user</td>
+<td><code>&lt;|im_start|&gt;user\n内容&lt;|im_end|&gt;\n</code></td>
+</tr>
+<tr class="even">
+<td>system（非首条）</td>
+<td>同上，按 user 处理</td>
+</tr>
+<tr class="odd">
+<td>assistant</td>
+<td>见 ④</td>
+</tr>
+<tr class="even">
+<td>tool</td>
+<td>见 ⑤</td>
+</tr>
+</tbody>
+</table>
+<p><strong>④ assistant 的「思考 + 回答」拆分</strong></p>
+<pre class="jinja"><code>{%- if &#39;&lt;/think&gt;&#39; in content %}
+    reasoning_content = content.split(&#39;&lt;/think&gt;&#39;)[0].split(&#39;&lt;think&gt;&#39;)[-1]
+    content = content.split(&#39;&lt;/think&gt;&#39;)[-1]
+{%- endif %}
+&lt;|im_start|&gt;assistant
+&lt;think&gt;{{ reasoning_content }}&lt;/think&gt;
+
+{{ content }}</code></pre>
+<p><strong>这是 minimind-3「自适应思考」的核心</strong>：无论数据里有没有思考内容， 模板<strong>总是</strong>输出一个 <code>&lt;think&gt;</code> 块（空的就是空块）。这样模型在训练时 同时见过「有思考」和「空思考」两种形态，推理时就能靠 <code>open_thinking</code> 开关切换。</p>
+<p><strong>⑤ tool 消息合并</strong></p>
+<pre class="jinja"><code>{%- if loop.first or messages[i-1].role != &quot;tool&quot; %}&lt;|im_start|&gt;user{% endif %}
+\n&lt;tool_response&gt;\n{{ content }}\n&lt;/tool_response&gt;
+{%- if loop.last or messages[i+1].role != &quot;tool&quot; %}&lt;|im_end|&gt;\n{% endif %}</code></pre>
+<p>连续多条 tool 结果会被<strong>合并进同一个 user 回合</strong>，避免每个工具结果都占一个完整回合。</p>
+<p><strong>⑥ 生成提示</strong></p>
+<pre class="jinja"><code>{%- if add_generation_prompt %}
+    &lt;|im_start|&gt;assistant\n
+    {%- if open_thinking %}&lt;think&gt;\n{%- else %}&lt;think&gt;\n\n&lt;/think&gt;\n\n{%- endif %}
+{%- endif %}</code></pre>
+<ul>
+<li>训练/预览：<code>add_generation_prompt=False</code>，不追加；</li>
+<li>推理：<code>True</code>，追加 assistant 开头；</li>
+<li><code>open_thinking=True</code> 时让模型从 <code>&lt;think&gt;</code> 内开始写，<code>False</code> 时先给一个<strong>空的完整思考块</strong>， 逼模型直接回答。</li>
+</ul>
+<hr />
+</section>
+</section>
+<section id="eval_tokenizer四项检查" class="level2">
+<h2>5. <code>eval_tokenizer</code>：四项检查</h2>
+<section id="模板渲染" class="level3">
+<h3>5.1 模板渲染</h3>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>new_prompt <span class="op">=</span> tokenizer.apply_chat_template(messages, tokenize<span class="op">=</span><span class="va">False</span>)</span></code></pre></div>
+<p><strong>实测渲染结果</strong>：</p>
+<pre><code>&lt;|im_start|&gt;system
+你是一个优秀的聊天机器人，总是给我正确的回应！&lt;|im_end|&gt;
+&lt;|im_start|&gt;user
+你来自哪里？&lt;|im_end|&gt;
+&lt;|im_start|&gt;assistant
+&lt;think&gt;
+&lt;/think&gt;
+我来自月球&lt;|im_end|&gt;
+...</code></pre>
+<p>注意 assistant 的<strong>空思考块</strong>被原样渲染出来——和 4.7 的设计对应。</p>
+</section>
+<section id="编解码一致性" class="level3">
+<h3>5.2 编解码一致性</h3>
+<div class="sourceCode" id="cb22"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>response <span class="op">=</span> tokenizer.decode(model_inputs[<span class="st">&#39;input_ids&#39;</span>], skip_special_tokens<span class="op">=</span><span class="va">False</span>)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="bu">print</span>(<span class="st">&#39;decoder一致性：&#39;</span>, response <span class="op">==</span> new_prompt)</span></code></pre></div>
+<p><strong>实测</strong>：<code>decoder一致性： True</code>，编码长度 76。</p>
+<p><strong>为什么这是最重要的检查</strong>：如果 byte-level 的 decoder 配置错了（比如少了 <code>decoders.ByteLevel()</code>）， 空格、换行、中文都会在解码时变形，而训练 loss 看起来完全正常—— <strong>这是分词器最隐蔽的 bug</strong>。</p>
+</section>
+<section id="压缩率字符数-token-数" class="level3">
+<h3>5.3 压缩率：字符数 / token 数</h3>
+<p><strong>实测（本机，用 README 语料训练的词表）</strong>：</p>
+<table>
+<thead>
+<tr class="header">
+<th>样本</th>
+<th>类型</th>
+<th>字符数</th>
+<th>Tokens</th>
+<th>压缩率</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1</td>
+<td>中文（通用）</td>
+<td>206</td>
+<td>149</td>
+<td>1.38</td>
+</tr>
+<tr class="even">
+<td>2</td>
+<td>中文（科幻）</td>
+<td>185</td>
+<td>187</td>
+<td><strong>0.99</strong></td>
+</tr>
+<tr class="odd">
+<td>3</td>
+<td>英文</td>
+<td>573</td>
+<td>161</td>
+<td>3.56</td>
+</tr>
+<tr class="even">
+<td>4</td>
+<td>英文</td>
+<td>533</td>
+<td>194</td>
+<td>2.75</td>
+</tr>
+<tr class="odd">
+<td>5</td>
+<td>中英混合</td>
+<td>269</td>
+<td>116</td>
+<td>2.32</td>
+</tr>
+<tr class="even">
+<td>—</td>
+<td><strong>平均</strong></td>
+<td></td>
+<td></td>
+<td><strong>2.20</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>怎么读这张表</strong>：</p>
+<ul>
+<li>英文约 3–4 字符/token，符合预期；</li>
+<li>中文只有 1.0–1.4，<strong>明显偏低</strong>——因为我的语料是 README（技术+代码）， 中文合并规律没学到位，生僻字被拆成 2–3 个字节 token；</li>
+<li>样本 2 的 0.99 意味着「一个字要一个多 token」——<strong>比一个字一个 token 还差</strong>；</li>
+<li>官方 tokenizer 在真实 SFT 语料上训练，README 提到中文约 1.5–1.7 字符/token。</li>
+</ul>
+<p><strong>结论</strong>：压缩率不只由分词器决定，<strong>更由「训练语料与目标文本的相似度」决定</strong>。 这也是为什么这个脚本不建议用来重训。</p>
+</section>
+<section id="流式解码与" class="level3">
+<h3>5.4 流式解码与 <code>�</code></h3>
+<div class="sourceCode" id="cb23"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> tid <span class="kw">in</span> input_ids:</span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>    token_cache.append(tid)</span>
+<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>    current_decode <span class="op">=</span> tokenizer.decode(token_cache)</span>
+<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> current_decode <span class="kw">and</span> <span class="st">&#39;�&#39;</span> <span class="kw">not</span> <span class="kw">in</span> current_decode:</span>
+<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>        <span class="bu">print</span>(...)<span class="op">;</span> token_cache <span class="op">=</span> []</span></code></pre></div>
+<p><strong>为什么需要缓冲</strong>：byte-level 的一个 token 可能只是<strong>半个汉字</strong>的 UTF-8 字节。 单独解码会得到 <code>�</code>（U+FFFD 替换字符）；必须等后续 token 补齐，才能输出完整字符。</p>
+<p><strong>实测片段</strong>：</p>
+<pre><code>Token ID: [548, 258]        -&gt; Raw: [&#39;ç§&#39;, &#39;Ģ&#39;]           -&gt; Decode Str: 秀
+Token ID: [1266, 259, 5738] -&gt; Raw: [&#39;çļĦè&#39;, &#39;ģ&#39;, &#39;Ĭå¤©&#39;] -&gt; Decode Str: 的聊天</code></pre>
+<p>三个 token 才拼出「的聊天」——这就是流式服务端必须做字节缓冲的原因。</p>
+<hr />
+</section>
+</section>
+<section id="关键设计点汇总" class="level2">
+<h2>6. 关键设计点汇总</h2>
+<table>
+<thead>
+<tr class="header">
+<th>设计</th>
+<th>一句话理由</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>byte-level BPE</td>
+<td>永不 OOV，任何 Unicode 都能编码</td>
+</tr>
+<tr class="even">
+<td>词表 6400</td>
+<td>小模型省 Embedding 参数（4.9M，占 7.7%）</td>
+</tr>
+<tr class="odd">
+<td>预留 9 个 buffer</td>
+<td>将来加标记不用重训</td>
+</tr>
+<tr class="even">
+<td>翻转 tag 的 special 标志</td>
+<td><code>&lt;think&gt;</code>/<code>&lt;tool_call&gt;</code> 是内容，不是控制符</td>
+</tr>
+<tr class="odd">
+<td>pad = unk = endoftext</td>
+<td>省 id，小词表场景常见</td>
+</tr>
+<tr class="even">
+<td>add_bos/eos = False</td>
+<td>由 chat template 统一负责</td>
+</tr>
+<tr class="odd">
+<td>模板总是输出 <code>&lt;think&gt;</code> 块</td>
+<td>支持「自适应思考」</td>
+</tr>
+<tr class="even">
+<td>独立输出目录</td>
+<td>防止覆盖官方 <code>model/</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="坑与注意事项" class="level2">
+<h2>7. 坑与注意事项</h2>
+<table>
+<thead>
+<tr class="header">
+<th>坑</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>重训词表后权重作废</strong></td>
+<td>文件头已警告；官方权重只能配官方词表</td>
+</tr>
+<tr class="even">
+<td><strong>语料太少 → 词表不满 6400</strong></td>
+<td>BPE 不报错，只是没长到目标大小；后续 <code>config.vocab_size</code> 会不一致</td>
+</tr>
+<tr class="odd">
+<td><strong><code>errors='ignore'</code> 静默丢字符</strong></td>
+<td>非 UTF-8 文件会被悄悄截断，不报错</td>
+</tr>
+<tr class="even">
+<td><strong>词表大小必须与模型一致</strong></td>
+<td><code>MiniMindConfig(vocab_size=6400)</code> 与此处的 <code>VOCAB_SIZE</code> 必须相等</td>
+</tr>
+<tr class="odd">
+<td><strong>模板假设 <code>messages[0]</code> 存在</strong></td>
+<td>空对话会渲染异常</td>
+</tr>
+<tr class="even">
+<td><strong><code>&lt;|im_end|&gt;</code> 被 unk 复用为 pad</strong></td>
+<td>做 padding 时要注意 mask 掉，否则模型会学「预测结束符」</td>
+</tr>
+<tr class="odd">
+<td><strong>压缩率可能 &lt; 1</strong></td>
+<td>见样本 2；说明词表与该领域文本不匹配</td>
+</tr>
+</tbody>
+</table>
+<hr />
+</section>
+<section id="自测题" class="level2">
+<h2>8. 自测题</h2>
+<ol type="1">
+<li>为什么用 byte-level BPE 而不用 WordPiece？</li>
+<li><code>initial_alphabet</code> 放的是什么？为什么是 256 个？</li>
+<li>6400 词表由哪几部分组成？</li>
+<li>为什么要预留 buffer token？</li>
+<li><code>&lt;think&gt;</code> 为什么设置成 <code>special=False</code>？</li>
+<li><code>pad</code> 和 <code>unk</code> 为什么可以共用一个 id？</li>
+<li><code>add_bos_token=False</code> 之后，BOS 由谁负责？</li>
+<li>模板为什么总是输出 <code>&lt;think&gt;</code> 块（哪怕是空的）？</li>
+<li><code>decoder一致性：True</code> 说明什么？不 True 会怎样？</li>
+<li>压缩率 0.99 意味着什么？</li>
+<li>流式解码为什么要等 <code>�</code> 消失？</li>
+<li>语料不够会怎样？为什么危险？</li>
+</ol>
+<section id="答案要点" class="level3">
+<h3>答案要点</h3>
+<ol type="1">
+<li>永不 OOV，任意 Unicode 可编码；代价是中文可能多 token。</li>
+<li>256 个字节 token，作为 BPE 合并的地基。</li>
+<li>256 字节 + 36 特殊 + 约 6108 个合并子词。</li>
+<li>以后加新标记可直接用，不必重训词表与模型。</li>
+<li>它是模型输出内容的一部分，<code>skip_special_tokens=True</code> 时不应被删除。</li>
+<li>Byte-level 不会产生未登录词，unk 仅占位；小词表省 id。</li>
+<li>chat template（模板里显式写 <code>&lt;|im_start|&gt;</code>）。</li>
+<li>训练时同时覆盖「有思考 / 空思考」，推理用开关切换。</li>
+<li>编码解码可逆；不 True 说明 decoder 配置错，文本会被破坏而 loss 正常。</li>
+<li>平均一个字要 1.01 个 token，压缩效率低于「一字一 token」。</li>
+<li>token 可能只包含半个字符的字节，提前解码会出现替换字符。</li>
+<li>词表长不满 6400，但不报错；与模型配置不一致，后续会形状错误或效果异常。</li>
+</ol>
+<hr />
+</section>
+</section>
+<section id="一表速查" class="level2">
+<h2>9. 一表速查</h2>
+<table>
+<thead>
+<tr class="header">
+<th>部分</th>
+<th>输入</th>
+<th>输出</th>
+<th>关键点</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>get_texts</code></td>
+<td>jsonl</td>
+<td>文本生成器</td>
+<td>兼容 text/conversations，空语料抛错</td>
+</tr>
+<tr class="even">
+<td><code>train_tokenizer</code></td>
+<td>语料 + 目录 + 词表大小</td>
+<td>tokenizer 目录</td>
+<td>BPE + ByteLevel + 36 特殊 + 模板</td>
+</tr>
+<tr class="odd">
+<td><code>eval_tokenizer</code></td>
+<td>tokenizer 目录</td>
+<td>终端报告</td>
+<td>一致性、压缩率、流式解码</td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</article>
+</main>
+</div>
+<footer class="prev-next">
+  <span>上一章：<a href="#">（暂无）</a></span>
+  <span>下一章：<a href="#">（暂无）</a></span>
+</footer>
+</body>
+</html>
